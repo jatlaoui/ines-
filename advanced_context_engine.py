@@ -9,7 +9,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, ValidationError
 
-# --- نماذج Pydantic (محسنة) ---
+# --- نماذج Pydantic ---
 class EntityContext(BaseModel):
     role_in_text: str = Field(..., description="دور الكيان في السرد (مثال: البطل، الحدث المحرك)")
     cultural_significance: Optional[str] = Field(None, description="الأهمية الثقافية أو الرمزية")
@@ -27,14 +27,18 @@ class EntityList(BaseModel):
     entities: List[Entity]
 
 class Relationship(BaseModel):
-    source: str  # ID of the source entity
-    target: str  # ID of the target entity
+    source: str
+    target: str
     relation: str
 
 class EmotionalArcPoint(BaseModel):
-    timestamp: int
-    emotion: str
-    intensity: float
+    timestamp: int = Field(..., description="موضع تقريبي في النص (0-100)")
+    emotion: str = Field(..., description="العاطفة السائدة في هذه النقطة")
+    intensity: float = Field(..., ge=0.0, le=10.0, description="شدة العاطفة (0-10)")
+    reasoning: Optional[str] = Field(None, description="شرح موجز للحدث أو الفكرة التي أثارت هذه العاطفة")
+
+class EmotionalArc(BaseModel):
+    emotional_arc_points: List[EmotionalArcPoint]
 
 class KnowledgeBase(BaseModel):
     entities: List[Entity]
@@ -45,11 +49,20 @@ class KnowledgeBase(BaseModel):
 # --- خدمات الـ LLM ومحاكاة الاستدعاء ---
 class GeminiService:
     async def generate_content(self, prompt: str) -> str:
-        # محاكاة استجابة من LLM بتنسيق JSON
-        # ستُستبدل هذه الوظيفة باستدعاء API حقيقي لـ LLM
-        print(f"--- LLM Prompt (extract_entities) ---\n{prompt[:600]}...\n---------------------------------")
-        mock_response = {"entities": []}
-        return json.dumps(mock_response, ensure_ascii=False)
+        print(f"--- LLM Prompt ---\n{prompt[:600]}...\n------------------")
+        # محاكاة استجابة LLM بناءً على نوع التحليل
+        if 'analyze_emotional_arc' in prompt:
+            mock = {
+                "emotional_arc_points": [
+                    {"timestamp": 10, "emotion": "أمل حذر", "intensity": 6.0, "reasoning": "العثور على الرسالة يمثل بداية أمل."},
+                    {"timestamp": 30, "emotion": "قلق وتوتر", "intensity": 7.5, "reasoning": "إدراك المخاطر في السوق العتيق."},
+                    {"timestamp": 60, "emotion": "حيرة وشك", "intensity": 7.0, "reasoning": "مواجهة أول عقبة أو معلومة مضللة."},
+                    {"timestamp": 90, "emotion": "إصرار وتصميم", "intensity": 8.5, "reasoning": "اتخاذ قرار بالمضي قدمًا رغم الصعوبات."}
+                ]
+            }
+        else:
+            mock = {"entities": []}
+        return json.dumps(mock, ensure_ascii=False)
 
 class WebSearchService:
     async def search(self, query: str) -> Any:
@@ -57,7 +70,6 @@ class WebSearchService:
 
 # --- المحرك المتقدم ---
 class AdvancedContextEngine:
-    """بناء قاعدة معرفة غنية من النص المدخل"""
     def __init__(self, web_search_service=None):
         self.web_search_service = web_search_service or WebSearchService()
         self.gemini_service = GeminiService()
@@ -78,7 +90,6 @@ class AdvancedContextEngine:
         )
 
     async def _process_llm_json_response(self, prompt: str, model: BaseModel) -> Any:
-        """استدعاء LLM وتنظيف والتحقق من الصحة."""
         response = await self.gemini_service.generate_content(prompt)
         try:
             json_str = self._clean_llm_output(response)
@@ -88,21 +99,10 @@ class AdvancedContextEngine:
             raise
 
     async def _extract_advanced_entities(self, text: str) -> List[Entity]:
-        """
-        استخراج متقدم للكيانات مع تحليل عميق باستخدام Prompt مصمم بعناية.
-        """
         prompt = f"""
         مهمتك: تحليل النص التالي واستخراج الكيانات الأكثر أهمية.
         لكل كيان، حدد: name, type (character/event/location/concept/object), description (جملة واحدة), importance_score (0.0-10.0), context.
         أرجع JSON جذري بمفتاح واحد 'entities' وهو قائمة الكيانات.
-        مثال:
-        {{
-          "entities": [
-            {{ "name":"علي","type":"character","description":"شاب طموح.","importance_score":8.5,
-              "context":{{"role_in_text":"البطل","cultural_significance":"رمز للشباب.","historical_period":"معاصر"}}
-            }}
-          ]
-        }}
         النص:
         ---
         {text[:10000]}
@@ -120,7 +120,19 @@ class AdvancedContextEngine:
         return []
 
     async def _analyze_emotional_arc(self, text: str) -> List[EmotionalArcPoint]:
-        print("Warning: emotional arc analysis not implemented.")
+        prompt = f"analyze_emotional_arc\n" + f"""
+        مهمتك: تحليل النص التالي ورسم القوس العاطفي للسرد.
+        حدد 4 إلى 7 نقاط تمثل التطورات العاطفية الرئيسية.
+        أرجع JSON جذري بمفتاح 'emotional_arc_points'.
+        النقاط يجب أن تتضمن timestamp (0-100), emotion, intensity (0.0-10.0), reasoning.
+        النص:
+        ---
+        {text[:10000]}
+        ---
+        """
+        result = await self._process_llm_json_response(prompt, EmotionalArc)
+        if result and result.emotional_arc_points:
+            return sorted(result.emotional_arc_points, key=lambda p: p.timestamp)
         return []
 
     def _clean_llm_output(self, raw: str) -> str:
@@ -141,7 +153,7 @@ class AdvancedContextEngine:
 # --- مثال اختبار ---
 async def main_test():
     engine = AdvancedContextEngine()
-    sample_text = "في زقاق ضيق من أزقة القاهرة القديمة، وجد علي رسالة غامضة..."
+    sample_text = "في زقاق ضيق من أزقة القاهرة القديمة..."
     kb = await engine.analyze_text(sample_text)
     print(kb.json(indent=2, ensure_ascii=False))
 
