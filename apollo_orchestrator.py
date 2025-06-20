@@ -1,21 +1,25 @@
-# apollo_orchestrator.py (الإصدار المحدث مع دعم مهام متعددة)
+# apollo_orchestrator.py (الإصدار الكامل والمحدث)
 import logging
 from typing import Any, Callable, Dict, List, Optional
 import json
 import asyncio
 
 # --- استيراد الوكلاء والخدمات ---
-# سيتم إنشاء مثيلات منها داخل المنسق
-from blueprint_architect_agent import BlueprintArchitectAgent
-from chapter_composer_agent import ChapterComposerAgent
-from literary_critic_agent import LiteraryCriticAgent
-from blueprint_critic_agent import BlueprintCriticAgent
-from idea_generator_agent import IdeaGeneratorAgent
-from idea_critic_agent import IdeaCriticAgent
-from poem_composer_agent import PoemComposerAgent
-from poetry_critic_agent import PoetryCriticAgent
+# نفترض أن هذه الملفات موجودة في مجلد `agents`
+from agents.base_agent import BaseAgent
+from agents.idea_generator_agent import IdeaGeneratorAgent
+from agents.idea_critic_agent import IdeaCriticAgent
+from agents.blueprint_architect_agent import BlueprintArchitectAgent
+from agents.blueprint_critic_agent import BlueprintCriticAgent
+from agents.chapter_composer_agent import ChapterComposerAgent
+from agents.literary_critic_agent import LiteraryCriticAgent
+from agents.poem_composer_agent import PoemComposerAgent
+from agents.poetry_critic_agent import PoetryCriticAgent
+from agents.forensic_logic_agent import ForensicLogicAgent
+from agents.forensic_critic_agent import ForensicCriticAgent
+# ... يمكن إضافة استيرادات للوكلاء المتخصصين الآخرين هنا ...
 
-from refinement_service import RefinementService
+from core.refinement_service import RefinementService
 
 # --- إعداد التسجيل (Logger) ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [Apollo] - %(levelname)s - %(message)s')
@@ -49,6 +53,9 @@ class ApolloOrchestrator:
         literary_critic = LiteraryCriticAgent()
         poem_composer = PoemComposerAgent()
         poem_critic = PoetryCriticAgent()
+        forensic_agent = ForensicLogicAgent()
+        forensic_critic = ForensicCriticAgent()
+        # ... إنشاء مثيلات للوكلاء الآخرين ...
 
         return {
             "generate_idea": {
@@ -83,6 +90,15 @@ class ApolloOrchestrator:
                 "critic_fn_name": "review_poem",
                 "default_threshold": 7.5
             },
+            "analyze_crime_narrative": { # <-- المهمة الجديدة المتخصصة
+                "description": "تحليل نص سردي يحتوي على جريمة لاستخلاص الأدلة والمنطق.",
+                "creator_agent": forensic_agent,
+                "creator_fn_name": "analyze_crime_scene",
+                "critic_agent": forensic_critic,
+                "critic_fn_name": "review_forensic_analysis",
+                "default_threshold": 7.5
+            },
+            # ... يمكن إضافة مهام أخرى هنا ...
         }
 
     async def run_refinable_task(
@@ -106,7 +122,6 @@ class ApolloOrchestrator:
         creator_agent = task_definition["creator_agent"]
         critic_agent = task_definition["critic_agent"]
         
-        # الحصول على الدوال من الوكلاء باستخدام أسمائها المسجلة
         try:
             creator_fn = getattr(creator_agent, task_definition["creator_fn_name"])
             critic_fn = getattr(critic_agent, task_definition["critic_fn_name"])
@@ -114,7 +129,7 @@ class ApolloOrchestrator:
             logger.error(f"Function not found on agent for task '{task_name}': {e}")
             raise AttributeError(f"Misconfigured task '{task_name}': {e}")
 
-        # 3. إعداد إعدادات التحسين (دمج الإعدادات الافتراضية مع إعدادات المستخدم)
+        # 3. إعداد إعدادات التحسين
         config = user_config or {}
         quality_threshold = config.get("quality_threshold", task_definition["default_threshold"])
         max_cycles = config.get("max_refinement_cycles", 2)
@@ -134,12 +149,15 @@ class ApolloOrchestrator:
         logger.info(f"Task '{task_name}' finished with a final score of {result.get('final_score'):.1f}")
         return result
 
+# إنشاء مثيل وحيد من أبولو
+apollo = ApolloOrchestrator()
+
 # --- مثال اختبار جديد لاختبار مرونة السجل ---
 if __name__ == "__main__":
-    from blueprint_architect_agent import ChapterOutline # للتوافق
+    from agents.blueprint_architect_agent import ChapterOutline # للتوافق
     
     async def main_test():
-        orchestrator = ApolloOrchestrator()
+        orchestrator = apollo
         
         # --- اختبار مهمة كتابة الفصل ---
         print("\n" + "="*80)
@@ -149,13 +167,17 @@ if __name__ == "__main__":
             title="الفصل 1: الرسالة الغامضة", summary="ملخص...", emotional_focus="أمل حذر", 
             key_events=["حدث1","حدث2"], character_arcs={"علي":"ينتقل..."}
         )
-        final_chapter_result = await orchestrator.run_refinable_task(
-            task_name="generate_chapter",
-            initial_context=sample_outline,
-            user_config={"quality_threshold": 8.5}
-        )
-        print("\n--- ✅ نتيجة مهمة كتابة الفصل النهائية ---")
-        print(json.dumps(final_chapter_result, ensure_ascii=False, indent=2))
+        try:
+            final_chapter_result = await orchestrator.run_refinable_task(
+                task_name="generate_chapter",
+                initial_context=sample_outline,
+                user_config={"quality_threshold": 8.5}
+            )
+            print("\n--- ✅ نتيجة مهمة كتابة الفصل النهائية ---")
+            print(json.dumps(final_chapter_result, ensure_ascii=False, indent=2))
+        except Exception as e:
+            print(f"--- ❌ فشل اختبار كتابة الفصل --- \n {e}")
+
         
         # --- اختبار مهمة كتابة قصيدة ---
         print("\n" + "="*80)
@@ -166,12 +188,36 @@ if __name__ == "__main__":
             "style_hint": "شعر حر",
             "quality_threshold": 7.0
         }
-        final_poem_result = await orchestrator.run_refinable_task(
-            task_name="generate_poem",
-            initial_context=poem_config, # السياق الأولي هنا هو إعدادات القصيدة
-            user_config=poem_config
-        )
-        print("\n--- ✅ نتيجة مهمة كتابة القصيدة النهائية ---")
-        print(json.dumps(final_poem_result, ensure_ascii=False, indent=2))
+        try:
+            final_poem_result = await orchestrator.run_refinable_task(
+                task_name="generate_poem",
+                initial_context=poem_config,
+                user_config=poem_config
+            )
+            print("\n--- ✅ نتيجة مهمة كتابة القصيدة النهائية ---")
+            print(json.dumps(final_poem_result, ensure_ascii=False, indent=2))
+        except Exception as e:
+            print(f"--- ❌ فشل اختبار كتابة القصيدة --- \n {e}")
+
+
+        # --- اختبار مهمة تحليل الجريمة ---
+        print("\n" + "="*80)
+        print("🧪 TEST 3: RUNNING 'analyze_crime_narrative' TASK")
+        print("="*80)
+        crime_config = {
+            "text_content": "وجد المحقق جثة الهالك في الغرفة. بجانبها، كان هناك سكين ملطخ بالدماء ونافذة مكسورة. شهود قالوا إنهم سمعوا صراخًا حوالي منتصف الليل.",
+            "quality_threshold": 8.0
+        }
+        try:
+            final_crime_analysis = await orchestrator.run_refinable_task(
+                task_name="analyze_crime_narrative",
+                initial_context=crime_config,
+                user_config=crime_config
+            )
+            print("\n--- ✅ نتيجة مهمة تحليل الجريمة النهائية ---")
+            print(json.dumps(final_crime_analysis, ensure_ascii=False, indent=2))
+        except Exception as e:
+            print(f"--- ❌ فشل اختبار تحليل الجريمة --- \n {e}")
+
 
     asyncio.run(main_test())
