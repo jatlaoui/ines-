@@ -1,20 +1,12 @@
 # agents/creative_chaos_agent.py
-"""
-CreativeChaosAgent (وكيل الفوضى المبدعة)
-يقوم بإدخال "ضوضاء إبداعية" محسوبة لكسر الأنماط وتوليد أفكار غير متوقعة.
-"""
 import logging
 import random
-from typing import Dict, Any, List, Optional
-
+from typing import Dict, Any, Optional, List
 from .base_agent import BaseAgent
 
 logger = logging.getLogger("CreativeChaosAgent")
 
 class CreativeChaosAgent(BaseAgent):
-    """
-    وكيل متخصص في توليد اقتراحات إبداعية غير متوقعة.
-    """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
             agent_id=agent_id,
@@ -22,17 +14,43 @@ class CreativeChaosAgent(BaseAgent):
             description="يكسر الأنماط المتوقعة ويقترح روابط ومفاهيم غير تقليدية."
         )
         self.creativity_techniques = [
-            self._juxtapose_concepts,
-            self._invert_expectation,
-            self._introduce_random_element,
-            self._change_perspective
+            self._juxtapose_concepts, self._invert_expectation,
+            self._introduce_random_element, self._change_perspective
         ]
-        logger.info("CreativeChaosAgent initialized.")
 
     async def generate_disruptive_ideas(self, context: Dict[str, Any], feedback: Optional[Any] = None) -> Dict[str, Any]:
-        """
-        الوظيفة الرئيسية: يولد مجموعة من الأفكار "المزعزعة" بناءً على السياق.
-        'context' يجب أن يحتوي على 'knowledge_base'.
+        knowledge_base = context.get("knowledge_base")
+        if not knowledge_base:
+            raise ValueError("KnowledgeBase is required.")
+            
+        num_ideas = context.get("num_ideas", 3)
+        logger.info(f"Generating {num_ideas} disruptive ideas...")
+        
+        disruptive_ideas = [random.choice(self.creativity_techniques)(knowledge_base) for _ in range(num_ideas)]
+        
+        return {"content": disruptive_ideas, "summary": f"تم توليد {len(disruptive_ideas)} فكرة غير تقليدية."}
+
+    def _juxtapose_concepts(self, kb: Dict[str, Any]) -> Dict[str, str]:
+        entities = kb.get("entities", [])
+        if len(entities) < 2: return {"technique": "Juxtaposition", "idea": "لا توجد كيانات كافية."}
+        e1, e2 = random.sample(entities, 2)
+        return {"technique": "ربط المفاهيم", "idea": f"ماذا لو كانت '{e1['name']}' رمزًا لـ '{e2['name']}'؟"}
+
+    def _invert_expectation(self, kb: Dict[str, Any]) -> Dict[str, str]:
+        rels = kb.get("relationship_graph", [])
+        if not rels: return {"technique": "Inversion", "idea": "لا توجد علاقات لتحليلها."}
+        rel = random.choice(rels)
+        inversion = {"يحب": "يكره", "يثق في": "يخون", "يساعد": "يستغل"}
+        inv_rel = inversion.get(rel['relation'], f"عكس '{rel['relation']}'")
+        return {"technique": "عكس التوقعات", "idea": f"ماذا لو كانت علاقة '{rel['source']}' بـ '{rel['target']}' تخفي '{inv_rel}'؟"}
+
+    def _introduce_random_element(self, kb: Dict[str, Any]) -> Dict[str, str]:
+        elements = ["عاصفة مفاجئة", "طفل غامض", "اكتشاف أثري"]
+        return {"technique": "عنصر عشوائي", "idea": f"كيف سيغير '{random.choice(elements)}' كل شيء؟"}
+        
+    def _change_perspective(self, kb: Dict[str, Any]) -> Dict[str, str]:
+        s_char = next((e['name'] for e in kb.get("entities", []) if e.get('importance_score', 0) < 7), None)
+        return {"technique": "تغيير المنظور", "idea": f"ماذا لو تم سرد الفصل التالي من وجهة نظر '{s_char or 'شخصية ثانوية'}'؟"}
         """
         knowledge_base = context.get("knowledge_base")
         if not knowledge_base:
