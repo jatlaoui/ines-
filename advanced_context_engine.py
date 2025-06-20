@@ -27,9 +27,14 @@ class EntityList(BaseModel):
     entities: List[Entity]
 
 class Relationship(BaseModel):
-    source: str
-    target: str
-    relation: str
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="معرف فريد للعلاقة")
+    source: str = Field(..., description="اسم الكيان المصدر")
+    target: str = Field(..., description="اسم الكيان الهدف")
+    relation: str = Field(..., description="وصف العلاقة (مثال: 'يؤدي إلى', 'يسبب')")
+    context: Optional[str] = Field(None, description="الجملة التي تصف العلاقة في النص")
+
+class RelationshipList(BaseModel):
+    relationships: List[Relationship]
 
 class EmotionalArcPoint(BaseModel):
     timestamp: int = Field(..., description="موضع تقريبي في النص (0-100)")
@@ -46,17 +51,24 @@ class KnowledgeBase(BaseModel):
     emotional_arc: List[EmotionalArcPoint]
     historical_context: Dict[str, Any]
 
-# --- خدمات الـ LLM ومحاكاة الاستدعاء ---
+# --- خدمات LLM ومحاكاة الاستدعاء ---
 class GeminiService:
     async def generate_content(self, prompt: str) -> str:
         print(f"--- LLM Prompt ---\n{prompt[:600]}...\n------------------")
-        # محاكاة استجابة LLM بناءً على نوع التحليل
-        if 'analyze_emotional_arc' in prompt:
+        if 'analyze_events_with_causality' in prompt:
+            mock = {
+                "relationships": [
+                    {"source": "الرسالة القديمة", "target": "علي", "relation": "يُحفِّز على البحث", "context": "الرسالة القديمة كانت مفتاحًا لماضيه المجهول."},
+                    {"source": "علي", "target": "سوق المدينة العتيق", "relation": "يذهب إلى", "context": "كان علي يبحث... فالسوق العتيق الذي يحتضن سره."},
+                    {"source": "البحث عن الكنز", "target": "المخاطر", "relation": "يؤدي إلى", "context": "كان يعلم أن رحلته محفوفة بالمخاطر."}
+                ]
+            }
+        elif 'analyze_emotional_arc' in prompt:
             mock = {
                 "emotional_arc_points": [
                     {"timestamp": 10, "emotion": "أمل حذر", "intensity": 6.0, "reasoning": "العثور على الرسالة يمثل بداية أمل."},
                     {"timestamp": 30, "emotion": "قلق وتوتر", "intensity": 7.5, "reasoning": "إدراك المخاطر في السوق العتيق."},
-                    {"timestamp": 60, "emotion": "حيرة وشك", "intensity": 7.0, "reasoning": "مواجهة أول عقبة أو معلومة مضللة."},
+                    {"timestamp": 60, "emotion": "حيرة وشك", "intensity": 7.0, "reasoning": "مواجهة أول عقبة."},
                     {"timestamp": 90, "emotion": "إصرار وتصميم", "intensity": 8.5, "reasoning": "اتخاذ قرار بالمضي قدمًا رغم الصعوبات."}
                 ]
             }
@@ -101,8 +113,8 @@ class AdvancedContextEngine:
     async def _extract_advanced_entities(self, text: str) -> List[Entity]:
         prompt = f"""
         مهمتك: تحليل النص التالي واستخراج الكيانات الأكثر أهمية.
-        لكل كيان، حدد: name, type (character/event/location/concept/object), description (جملة واحدة), importance_score (0.0-10.0), context.
-        أرجع JSON جذري بمفتاح واحد 'entities' وهو قائمة الكيانات.
+        لكل كيان، حدد: name, type (character/event/location/concept/object), description, importance_score (0.0-10.0), context.
+        أرجع JSON جذري بمفتاح 'entities'.
         النص:
         ---
         {text[:10000]}
@@ -112,24 +124,19 @@ class AdvancedContextEngine:
         return result.entities
 
     async def _analyze_events_with_causality(self, text: str, entities: List[Entity]) -> List[Relationship]:
-        print("Warning: events analysis not implemented.")
-        return []
+        if not entities:
+            return []
+        relevant_names = [e.name for e in entities if e.type in ['character','event','object','location']]
+        prompt = f"analyze_events_with_causality\nمهمتك: تحديد العلاقات السببية بين الكيانات: {', '.join(relevant_names)}\nالنص:\n---\n{text[:10000]}\n---"
+        result = await self._process_llm_json_response(prompt, RelationshipList)
+        return result.relationships
 
     async def _analyze_characters_psychological(self, text: str, entities: List[Entity]) -> List[Relationship]:
         print("Warning: characters analysis not implemented.")
         return []
 
     async def _analyze_emotional_arc(self, text: str) -> List[EmotionalArcPoint]:
-        prompt = f"analyze_emotional_arc\n" + f"""
-        مهمتك: تحليل النص التالي ورسم القوس العاطفي للسرد.
-        حدد 4 إلى 7 نقاط تمثل التطورات العاطفية الرئيسية.
-        أرجع JSON جذري بمفتاح 'emotional_arc_points'.
-        النقاط يجب أن تتضمن timestamp (0-100), emotion, intensity (0.0-10.0), reasoning.
-        النص:
-        ---
-        {text[:10000]}
-        ---
-        """
+        prompt = f"analyze_emotional_arc\nمهمتك: تعقب القوس العاطفي عبر النص، 4-7 نقاط رئيسية.\nالنص:\n---\n{text[:10000]}\n---"
         result = await self._process_llm_json_response(prompt, EmotionalArc)
         if result and result.emotional_arc_points:
             return sorted(result.emotional_arc_points, key=lambda p: p.timestamp)
@@ -153,7 +160,7 @@ class AdvancedContextEngine:
 # --- مثال اختبار ---
 async def main_test():
     engine = AdvancedContextEngine()
-    sample_text = "في زقاق ضيق من أزقة القاهرة القديمة..."
+    sample_text = "في زقاق ضيق من أزقة القاهرة القديمة، وجد علي رسالة غامضة..."
     kb = await engine.analyze_text(sample_text)
     print(kb.json(indent=2, ensure_ascii=False))
 
