@@ -1,55 +1,41 @@
-# agents/chapter_composer_agent.py
-"""
-ChapterComposerAgent (مؤلف الفصول) - الإصدار المحسن
-الغرض: تحويل ChapterOutline إلى نثر أدبي غني ومؤثر، معزز بالذاكرة التجريبية الحسية.
-"""
+# agents/chapter_composer_agent.py (النسخة المفعّلة)
+
 import logging
 import json
 from typing import Dict, Any, Optional, List
 
+# --- الاستيرادات المحدثة ---
 from .base_agent import BaseAgent
-from engines.sensory_engine import sensory_engine # <-- الإضافة الجديدة: استيراد محرك التمثيلات الحسية
-# نفترض أن هذا الملف موجود في المسار الصحيح
-from agents.blueprint_architect_agent import ChapterOutline 
+from core.llm_service import llm_service             # <-- الخدمة الحقيقية
+from engines.sensory_engine import sensory_engine      # <-- محرك الذاكرة الحسية
+# استيراد نماذج البيانات من مكانها الصحيح
+try:
+    # محاولة الاستيراد من المسار المتوقع في الهيكل الكامل
+    from data_models.story_elements import ChapterOutline
+except ImportError:
+    # استيراد بديل للاختبار المستقل
+    from agents.blueprint_architect_agent import ChapterOutline
 
-logger = logging.getLogger("ChapterComposerAgent")
-
-# --- محاكاة خدمة LLM (للتوضيح فقط) ---
-class MockLLMChapterService:
-    async def write_chapter(self, prompt: str) -> str:
-        # طباعة الـ prompt لنرى كيف تم بناؤه
-        print("--- LLM Prompt (ChapterComposer - Enhanced) ---")
-        print(prompt)
-        print("---------------------------------------------")
-        
-        # محاكاة لاستجابة تحتوي على فصل مكتوب
-        mock_chapter = {
-            "content": {
-                "chapter_content": "تحت سماء القاهرة الرمادية، وقف علي يراقب المارة. لم يكن يشعر ببرودة الهواء بقدر ما كان يشعر ببرودة روحه الفارغة. رائحة الشواء المنبعثة من مطعم قريب لم تعد تثير شهيته، بل ذكرته فقط بموائد الطعام الدافئة التي تركها خلفه. أمسك بالرسالة القديمة في جيبه، ملمسها الخشن كان بمثابة مرساة تربطه بعالم يكاد ينساه. كانت غربته صحراء لا تنتهي، وكانت هذه الرسالة بئر الماء الوحيد في أفقه.",
-                "word_count": 85,
-                "quality_score": 9.2,
-                "notes": "تم استخدام إرشادات 'الغربة' الحسية بنجاح."
-            }
-        }
-        return json.dumps(mock_chapter, ensure_ascii=False)
+logger = logging.getLogger(__name__)
 
 class ChapterComposerAgent(BaseAgent):
     """
     وكيل متخصص في كتابة فصول الروايات بناءً على مخططات مفصلة،
-    معززة بالذاكرة التجريبية الحسية.
+    معززة بالذاكرة التجريبية الحسية وباستخدام خدمة LLM حقيقية.
     """
-    def __init__(self, agent_id: Optional[str] = None, llm_service=None):
+    def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
-            agent_id=agent_id,
+            agent_id=agent_id or "chapter_composer_agent",
             name="مؤلف الفصول الماهر",
             description="يكتب فصولاً روائية عميقة باستخدام خطط مفصلة وذاكرة حسية."
         )
-        self.llm = llm_service or MockLLMChapterService()
-        self.style_profile = { # يمكن تخصيص هذا لاحقًا
+        # لم نعد بحاجة إلى llm_service في التهيئة
+        self.style_profile = {
             "sensory_detail": True,
             "symbolism": True,
             "internal_monologue": True,
         }
+        logger.info("ChapterComposerAgent initialized and connected to the live LLM service.")
 
     async def write_chapter(self, context: Dict[str, Any], feedback: Optional[List[str]] = None) -> Dict[str, Any]:
         """
@@ -60,46 +46,51 @@ class ChapterComposerAgent(BaseAgent):
         if not isinstance(chapter_outline, ChapterOutline):
             raise TypeError("A 'ChapterOutline' object is required in the context.")
             
-        logger.info(f"Composing chapter: '{chapter_outline.title}'")
+        logger.info(f"Composing chapter: '{chapter_outline.title}'...")
 
         # --- الخطوة 1: بناء Prompt ذكي ومفصل ومعزز ---
         prompt = self._build_chapter_prompt(chapter_outline, feedback)
         
-        # --- الخطوة 2: استدعاء LLM لتوليد محتوى الفصل ---
-        response_json = await self.llm.write_chapter(prompt)
+        # --- الخطوة 2: استدعاء LLM الحقيقي لتوليد محتوى الفصل ---
+        response_data = await llm_service.generate_json_response(prompt, temperature=0.7)
         
+        # --- الخطوة 3: تحليل وتنظيم المخرجات ---
+        if "error" in response_data:
+            logger.error(f"LLM call failed for chapter composition. Details: {response_data.get('details')}")
+            return {"status": "error", "message": "Failed to get chapter content from LLM.", "raw": response_data}
+
+        # الرد من llm_service هو بالفعل JSON، لذا لا داعي لـ json.loads
+        # نتوقع أن يكون الرد مطابقًا للمخطط الذي طلبناه في الـ prompt
+        chapter_content = response_data
+
         try:
-            # --- الخطوة 3: تحليل وتنظيم المخرجات ---
-            result = json.loads(response_json)
             # دمج معلومات المخطط مع النتيجة
-            final_result = result.get("content", {})
-            final_result['title'] = chapter_outline.title
-            final_result['chapter_number'] = int(chapter_outline.title.split()[1].replace(':', ''))
-            return {"content": final_result} # تغليف النتيجة لتتوافق مع RefinementService
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Error parsing chapter generation response: {e}")
-            return {"error": "Failed to parse LLM response for the chapter.", "raw": response_json}
+            chapter_content['title'] = chapter_outline.title
+            chapter_content['chapter_number'] = int(re.search(r'\d+', chapter_outline.title).group())
+            
+            logger.info(f"Successfully composed and parsed chapter '{chapter_outline.title}'.")
+            # تغليف النتيجة لتتوافق مع RefinementService
+            return {"status": "success", "content": chapter_content} 
+        except (KeyError, TypeError, AttributeError) as e:
+            logger.error(f"Error processing chapter data: {e}. Received data: {chapter_content}")
+            return {"status": "error", "message": "LLM response structure is invalid.", "raw": chapter_content}
 
     def _build_chapter_prompt(self, outline: ChapterOutline, feedback: Optional[List[str]] = None) -> str:
         """
         يبني Prompt مفصلاً، معززًا بالتمثيلات الحسية وملاحظات الناقد.
+        محسن لـ Gemini API.
         """
-        # تحويل القوائم والقواميس إلى نصوص واضحة
         key_events_str = "\n- ".join(outline.key_events)
         character_arcs_str = "\n- ".join([f"{name}: {arc}" for name, arc in outline.character_arcs.items()])
 
-        # --- الإضافة 1: دمج ملاحظات الناقد (Feedback) ---
         feedback_section = ""
         if feedback:
             feedback_str = "\n- ".join(feedback)
             feedback_section = f"""
-            **ملاحظات من المراجعة السابقة (يجب تطبيقها بدقة):**
-            - {feedback_str}
-
-            يرجى إعادة كتابة الفصل مع معالجة هذه الملاحظات.
-            """
-
-        # --- الإضافة 2: إثراء الـ Prompt بالذاكرة التجريبية ---
+**ملاحظات من المراجعة السابقة (يجب تطبيقها بدقة):**
+- {feedback_str}
+"""
+        # استخدام محرك الذاكرة الحسية
         emotional_focus = outline.emotional_focus
         sensory_data = sensory_engine.get_sensory_representation(emotional_focus)
         
@@ -110,81 +101,81 @@ class ChapterComposerAgent(BaseAgent):
             metaphors_str = "\n- ".join(sensory_data.get("metaphors", []))
             
             sensory_instructions = f"""
-            **إرشادات حسية وسلوكية (من الذاكرة التجريبية):**
-            للتعبير عن شعور '{emotional_focus}'، لا تقل "شعر بـ{emotional_focus}" مباشرة، بل أظهر ذلك من خلال:
-
-            *   **الوصف الحسي (استلهم من هذه الصور، لا تنسخها حرفيًا):**
-                - {senses_str}
-
-            *   **السلوكيات (اجعل الشخصية تقوم بهذه الأفعال لتعكس مشاعرها):**
-                - {behaviors_str}
-            
-            *   **الاستعارات (استخدم تشبيهات قوية مثل هذه):**
-                - {metaphors_str}
-            """
-
+**إرشادات حسية (Show, Don't Tell):** للتعبير عن شعور '{emotional_focus}'، لا تقل "شعر بـ{emotional_focus}" مباشرة، بل أظهره من خلال:
+*   **الوصف الحسي (استلهم من هذه الصور):**
+    - {senses_str}
+*   **السلوكيات (اجعل الشخصية تتصرف هكذا):**
+    - {behaviors_str}
+*   **الاستعارات (استخدم تشبيهات قوية كهذه):**
+    - {metaphors_str}
+"""
         # --- بناء الـ Prompt النهائي ---
-        full_prompt = f"""
-        مهمتك: أنت روائي عربي محترف وخبير في أسلوب الجطلاوي. اكتب الفصل التالي من الرواية بدقة وإبداع، بناءً على المواصفات التالية.
+        return f"""
+مهمتك: أنت روائي عربي محترف وخبير في أسلوب الكتابة الأدبي العميق والمؤثر. اكتب الفصل التالي من الرواية بدقة وإبداع، بناءً على المواصفات التالية.
+يجب أن يكون ردك **حصريًا** بتنسيق JSON صالح، بدون أي نص تمهيدي أو ملاحظات إضافية.
 
-        **عنوان الفصل:** {outline.title}
+**مواصفات الفصل المطلوب:**
+- **عنوان الفصل:** {outline.title}
+- **ملخص الفصل:** {outline.summary}
+- **التركيز العاطفي الأساسي:** {outline.emotional_focus}
+- **الأحداث الرئيسية التي يجب أن تقع:**
+  - {key_events_str}
+- **تطور الشخصيات في هذا الفصل:**
+  - {character_arcs_str}
+{feedback_section}
+{sensory_instructions}
 
-        **ملخص الفصل:**
-        {outline.summary}
+**تعليمات الكتابة النهائية:**
+1.  ابدأ الفصل بمشهد قوي وجذاب يغمر القارئ في الأجواء الحسية.
+2.  تأكد من تغطية جميع الأحداث الرئيسية وتطورات الشخصيات المذكورة.
+3.  أظهر مشاعر الشخصيات من خلال أفعالها وحواراتها الداخلية، وليس فقط من خلال السرد المباشر.
+4.  انهِ الفصل بطريقة مشوقة تثير فضول القارئ للفصل التالي.
+5.  اكتب بأسلوب أدبي غني ومؤثر.
 
-        **التركيز العاطفي:**
-        {outline.emotional_focus}
+**مخطط JSON المطلوب (Schema):**
+{{
+  "chapter_content": "string // المحتوى الكامل للفصل كنص واحد متدفق.",
+  "word_count": "integer // العدد الفعلي للكلمات في المحتوى.",
+  "quality_score": "float // تقييمك الذاتي لجودة الفصل الذي كتبته (من 0.0 إلى 10.0).",
+  "notes": "string // ملاحظة قصيرة حول كيفية تطبيق الإرشادات الحسية أو أي تحد واجهته."
+}}
+"""
 
-        **الأحداث الرئيسية التي يجب أن تحدث في هذا الفصل:**
-        - {key_events_str}
-
-        **تطور الشخصيات في هذا الفصل:**
-        - {character_arcs_str}
-
-        {feedback_section}
-
-        {sensory_instructions}
-
-        **تعليمات الكتابة النهائية:**
-        1.  ابدأ الفصل بمشهد قوي وجذاب يغمر القارئ في الأجواء الحسية.
-        2.  تأكد من تغطية جميع الأحداث الرئيسية المذكورة في المخطط.
-        3.  أظهر تطور الشخصيات ومشاعرها من خلال أفعالها وحواراتها الداخلية، وليس فقط من خلال السرد المباشر.
-        4.  التزم بالمسار العاطفي المحدد للفصل بدقة.
-        5.  اكتب بأسلوب أدبي غني ومؤثر، مستلهمًا من الإرشادات الحسية والسلوكية.
-        6.  انهِ الفصل بطريقة تثير فضول القارئ للفصل التالي.
-
-        أرجع الإجابة **حصريًا** بتنسيق JSON. يجب أن يحتوي الكائن على مفتاح واحد هو "content"، وقيمته كائن يتبع الهيكل التالي:
-        - "chapter_content": (string) المحتوى الكامل للفصل كنص واحد.
-        - "word_count": (integer) العدد الفعلي للكلمات في المحتوى.
-        - "quality_score": (float) تقييمك لجودة الفصل الذي كتبته (من 0.0 إلى 10.0).
-        - "notes": (string) ملاحظة قصيرة حول كيفية تطبيق الإرشادات الحسية.
-        """
-        return full_prompt.strip()
-
-# --- مثال اختبار ---
+# --- قسم الاختبار المحدّث ---
 async def main_test():
-    from agents.blueprint_architect_agent import ChapterOutline # للتوافق
+    import os
+    import re
+    from dotenv import load_dotenv
 
-    # 1. محاكاة مخطط فصل تم إنتاجه بواسطة BlueprintArchitectAgent
+    load_dotenv()
+    if not os.getenv("GEMINI_API_KEY"):
+        print("❌ خطأ: متغير البيئة GEMINI_API_KEY غير موجود. يرجى إضافته في ملف .env")
+        return
+
+    # 1. محاكاة مخطط فصل
     sample_chapter_outline = ChapterOutline(
         title="الفصل 1: الرسالة الغامضة",
         summary="يجد البطل 'علي' رسالة قديمة من جده في القاهرة، مما يطلق شرارة الأحداث التي تدفعه للبحث عن ماضيه.",
-        emotional_focus="الغربة", # <-- نستخدم مفهوماً موجوداً في الذاكرة الحسية
-        key_events=["علي يجد الرسالة", "علي يقرر فك شفرة الرسالة"],
+        emotional_focus="الغربة", 
+        key_events=["علي يجد الرسالة في صندوق خشبي قديم.", "علي يقرر فك شفرة الرسالة مهما كلف الأمر."],
         character_arcs={"علي": "ينتقل من حالة الركود والضياع إلى امتلاك هدف جديد ومحفوف بالمخاطر."}
     )
     
-    # 2. إنشاء وكيل مؤلف الفصول
     composer_agent = ChapterComposerAgent()
     
-    # 3. كتابة الفصل
-    print("--- بدء كتابة الفصل 1 مع تعزيز حسي ---")
-    generated_chapter_data = await composer_agent.write_chapter(context={"chapter_outline": sample_chapter_outline})
+    print(f"--- 🧪 بدء اختبار كتابة الفصل '{sample_chapter_outline.title}' مع اتصال LLM حقيقي... ---")
     
-    # 4. عرض النتائج
-    print("\n--- ✅ الفصل تم إنتاجه بنجاح ---")
-    print(json.dumps(generated_chapter_data, indent=2, ensure_ascii=False))
+    result = await composer_agent.write_chapter(context={"chapter_outline": sample_chapter_outline})
+    
+    if result.get("status") == "success":
+        print("\n--- ✅ الفصل تم إنتاجه بنجاح ---")
+        final_content = result.get("content", {})
+        print(json.dumps(final_content, indent=2, ensure_ascii=False))
+        # print("\n--- محتوى الفصل ---")
+        # print(final_content.get("chapter_content"))
+    else:
+        print("\n--- ❌ فشل إنتاج الفصل ---")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
-    from agents.base_agent import BaseAgent # للتوافق
     asyncio.run(main_test())
