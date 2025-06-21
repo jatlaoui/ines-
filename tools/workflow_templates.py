@@ -181,4 +181,74 @@ emotional_rap_composition = WorkflowTemplate(
     ]
 )
 # ... تسجيل القالب الجديد
-self.templates[emotional_rap_composition.id] = emotional_rap_composition
+self.templates[e# في ملف workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 6. قالب إنتاج أغنية راب ببروتوكول "الروح العامية"
+# ----------------------------------------------------------------------
+vernacular_soul_rap = WorkflowTemplate(
+    id="vernacular_soul_rap_v5",
+    name="إنتاج أغنية راب (بروتوكول الروح العامية)",
+    description="سير عمل نهائي ينتج أغنية راب أصيلة عبر فصل التعبير الخام عن الهندسة الموسيقية.",
+    category="music_composition",
+    tasks=[
+        # المرحلة 1: التحليل الشامل
+        WorkflowTask(
+            id="task_1_soul_profile",
+            name="تحليل الملف الروحي (النصي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "soul_profiler_agent", "text_content": "{artist_lyrics_corpus}"}
+        ),
+        WorkflowTask(
+            id="task_2_rhythmic_profile",
+            name="تحليل البصمة الإيقاعية (الصوتي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "rhythm_flow_analyzer_agent", "audio_source": "{artist_audio_sample.mp3}"}
+        ),
+        # المرحلة 2: بناء عالم الأغنية
+        WorkflowTask(
+            id="task_3_sensory_library",
+            name="بناء المكتبة الحسية للأغنية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "sensory_engine", "concept": "حومة النسيان"},
+            dependencies=["task_1_soul_profile"]
+        ),
+        # المرحلة 3: الكتابة الخام
+        WorkflowTask(
+            id="task_4_raw_composition",
+            name="كتابة تيار الوعي الخام",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={
+                "agent_id": "poem_composer_agent",
+                "embodiment_prompt": "أنت شاب تونسي عمره 22 عاماً، تعيش في 'حومة النسيان'. والدتك هي كل ما تملك. صديقك المقرب 'علي' مات في البحر. أنت تشعر بالغضب من الظلم، وبالحزن على صديقك. اكتب أفكارك الآن."
+            },
+            dependencies=["task_1_soul_profile", "task_3_sensory_library"]
+        ),
+        # المرحلة 4: الهندسة الموسيقية
+        WorkflowTask(
+            id="task_5_flow_engineering",
+            name="هندسة التدفق والقافية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lyrical_flow_master_agent"},
+            dependencies=["task_2_rhythmic_profile", "task_4_raw_composition"]
+        ),
+        # المرحلة 5: إضافة الأداء
+        WorkflowTask(
+            id="task_6_performance_direction",
+            name="إضافة توجيهات الأداء الصوتي",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "vocal_performance_director_agent"},
+            dependencies=["task_2_rhythmic_profile", "task_5_flow_engineering"]
+        ),
+        # المرحلة 6: النقد النهائي
+        WorkflowTask(
+            id="task_7_final_critique",
+            name="المراجعة الجمالية والأدائية النهائية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "aesthetic_critic_agent"},
+            dependencies=["task_6_performance_direction"]
+        ),
+    ]
+)
+# تسجيل القالب
+self.templates[vernacular_soul_rap.id] = vernacular_soul_rapmotional_rap_composition.id] = emotional_rap_composition
