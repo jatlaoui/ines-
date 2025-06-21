@@ -1,55 +1,95 @@
-# tools/tunisian_dialogue_gallery.py
+# tools/tunisian_dialogue_gallery.py (النسخة المحسنة)
+
 import logging
 import random
-from typing import Dict, Any, List
+import json
+from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-logger = logging.getLogger("TunisianDialogueGallery")
+logger = logging.getLogger("TunisianDialogueEngine")
 
-class TunisianDialogueGallery:
+class TunisianDialogueEngine:
     """
-    معرض ومولد للحوارات باللهجة التونسية الدارجة.
+    محرك متقدم لتوليد الحوارات باللهجات التونسية المختلفة.
     """
-    def __init__(self):
-        # قاعدة بيانات مبسطة، في نظام حقيقي ستكون ضخمة
-        self.proverbs = [
-            "امشي بالنية وارقد في الثنية.",
-            "اللي يده في الماء موش كي اللي يده في النار.",
-            "ما يغرك زين الطفلة حتى تشوف الفعايل.",
-            "جاء يكحلها عماها."
-        ]
-        self.dialogue_patterns = {
-            "al_hajja": {
-                "greetings": ["السلام عليكم يا بنتي", "أهلا بيك"],
-                "complaints": ["ربي يهدي ما خلق", "الدنيا ما عادش فيها أمان"],
-                "advice": ["رد بالك على روحك", "اسمع كلامي يهديك"],
-                "linking_phrases": self.proverbs
-            },
-            "al_mothaqafa": {
-                "greetings": ["Bonjour", "أهلاً، لاباس؟"],
-                "objections": ["C'est pas logique", "هذا موش معقول بالكل"],
-                "questions": ["علاش لازم نعمل هكة؟", "شنوة الهدف من هذا؟"],
-                "linking_phrases": ["في الأخير", "المهم هو"]
-            }
-        }
-        logger.info("TunisianDialogueGallery initialized.")
-
-    def generate_dialogue(self, character_archetype: str, topic: str, mood: str) -> str:
-        """
-        يولد جملة حوارية مناسبة للشخصية والموقف.
-        """
-        logger.info(f"Generating dialogue for archetype '{character_archetype}' on topic '{topic}' with mood '{mood}'")
-        
-        patterns = self.dialogue_patterns.get(character_archetype)
-        if not patterns:
-            return "..." # حوار افتراضي
-
-        # اختيار نمط بناءً على المزاج والموضوع
-        if mood == "قلق":
-            return random.choice(patterns.get("complaints", ["..."]))
-        elif mood == "ملل" and "objections" in patterns:
-            return random.choice(patterns.get("objections", ["..."]))
+    def __init__(self, data_file_path: str = "data/tunisian_dialects.json"):
+        self.dialects_data = self._load_dialects_data(data_file_path)
+        if not self.dialects_data:
+            logger.error("Failed to load dialect data. The engine will not function correctly.")
         else:
-            # دمج جملة مع مثل شعبي
-            base_sentence = random.choice(patterns.get("advice", ["..."]))
-            proverb = random.choice(patterns.get("linking_phrases", [""]))
-            return f"{base_sentence}... {proverb}"
+            logger.info(f"✅ Tunisian Dialogue Engine initialized with {len(self.dialects_data.get('dialects', []))} dialects.")
+
+    def _load_dialects_data(self, file_path: str) -> Dict[str, Any]:
+        """
+        تحميل بيانات اللهجات من ملف JSON.
+        """
+        try:
+            p = Path(file_path)
+            if not p.exists():
+                logger.warning(f"Dialect data file not found at: {file_path}. Creating a default one.")
+                self._create_default_data_file(p)
+            
+            with p.open('r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Error loading or parsing dialect data file: {e}")
+            return {}
+
+    def _create_default_data_file(self, p: Path):
+        """
+        إنشاء ملف بيانات افتراضي إذا لم يكن موجودًا.
+        """
+        p.parent.mkdir(parents=True, exist_ok=True)
+        default_data = { "dialects": [] } # ابدأ فارغًا للسماح للمستخدم بإضافات
+        with p.open('w', encoding='utf-8') as f:
+            json.dump(default_data, f, ensure_ascii=False, indent=2)
+
+    def generate_dialogue(
+        self,
+        character_archetype: str,
+        topic: str,
+        mood: str,
+        dialect_id: str = "tunisois" # إضافة معرف اللهجة
+    ) -> str:
+        """
+        يولد جملة حوارية مناسبة للشخصية، الموقف، واللهجة الجهوية.
+        """
+        logger.info(f"Generating dialogue for: [Dialect: {dialect_id}, Archetype: {character_archetype}, Topic: {topic}, Mood: {mood}]")
+        
+        # 1. البحث عن اللهجة المطلوبة
+        dialect_data = next((d for d in self.dialects_data.get('dialects', []) if d['id'] == dialect_id), None)
+        if not dialect_data:
+            logger.warning(f"Dialect '{dialect_id}' not found. Falling back to default.")
+            return "..."
+
+        # 2. البحث عن نمط الشخصية داخل اللهجة
+        archetype_data = dialect_data.get('archetypes', {}).get(character_archetype)
+        if not archetype_data:
+            logger.warning(f"Archetype '{character_archetype}' not found for dialect '{dialect_id}'.")
+            return "آش نقول...؟" # رد افتراضي يعكس الحيرة
+
+        # 3. اختيار الحوار بناءً على المزاج والموضوع (أكثر ذكاءً)
+        dialogue_options = []
+        if mood in archetype_data.get('moods', {}):
+            dialogue_options.extend(archetype_data['moods'][mood])
+            
+        if topic in archetype_data.get('topics', {}):
+            dialogue_options.extend(archetype_data['topics'][topic])
+
+        if not dialogue_options:
+            # إذا لم نجد شيئًا محددًا، نستخدم الأمثال العامة لهذه اللهجة
+            dialogue_options.extend(dialect_data.get("proverbs", ["..."]))
+
+        return random.choice(dialogue_options)
+
+    def get_available_dialects(self) -> List[Dict[str, str]]:
+        """
+        إرجاع قائمة باللهجات المتاحة.
+        """
+        return [
+            {"id": d.get("id"), "name": d.get("name")} 
+            for d in self.dialects_data.get('dialects', [])
+        ]
+
+# إنشاء مثيل وحيد من المحرك
+dialogue_engine = TunisianDialogueEngine()
