@@ -126,3 +126,59 @@ class AdvancedWorkflowTemplates:
         return self.templates.get(template_id)
 
 workflow_template_manager = AdvancedWorkflowTemplates()
+# في ملف workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 5. قالب كتابة أغنية راب مع تقمص وجداني وصوتي
+# ----------------------------------------------------------------------
+emotional_rap_composition = WorkflowTemplate(
+    id="emotional_rap_v2",
+    name="إنتاج أغنية راب (مع الروح الموسيقية)",
+    description="سير عمل متقدم لإنتاج أغنية راب، مع تحليل صوتي وأدائي للفنان المستهدف.",
+    category="music_composition",
+    tasks=[
+        WorkflowTask(
+            id="task_1_soul_profile",
+            name="تحليل الملف الروحي (النصي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "soul_profiler_agent", "text_content": "{artist_lyrics_corpus}"}
+        ),
+        WorkflowTask(
+            id="task_2_rhythmic_profile",
+            name="تحليل البصمة الإيقاعية (الصوتي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "rhythm_flow_analyzer", "audio_source": "{artist_audio_sample.mp3}"}
+        ),
+        WorkflowTask(
+            id="task_3_idea_generation",
+            name="توليد فكرة الأغنية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "idea_generator", "context_prompt": "Generate a contemporary social theme suitable for the artist's profile."},
+            dependencies=["task_1_soul_profile", "task_2_rhythmic_profile"]
+        ),
+        WorkflowTask(
+            id="task_4_lyric_composition",
+            name="كتابة المسودة الأولى للكلمات",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "poem_composer_agent", "prompt_id": "balti_embodiment_prompt"},
+            dependencies=["task_3_idea_generation"]
+        ),
+        WorkflowTask(
+            id="task_5_performance_direction",
+            name="إضافة توجيهات الأداء الصوتي",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            # سيتم تمرير مخرجات المهمتين 2 و 4 تلقائيًا
+            input_data={"agent_id": "vocal_performance_director"},
+            dependencies=["task_2_rhythmic_profile", "task_4_lyric_composition"]
+        ),
+        WorkflowTask(
+            id="task_6_final_critique",
+            name="المراجعة الجمالية النهائية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "aesthetic_critic_agent", "critique_focus": "authenticity_and_impact"},
+            dependencies=["task_5_performance_direction"]
+        ),
+    ]
+)
+# ... تسجيل القالب الجديد
+self.templates[emotional_rap_composition.id] = emotional_rap_composition
