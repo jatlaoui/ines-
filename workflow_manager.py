@@ -1,93 +1,86 @@
-# core/workflow_manager.py (النسخة المفعّلة والمبسطة)
+# core/workflow_manager.py (النسخة النهائية والمفعّلة)
 
 import logging
 import json
 import asyncio
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List
 
-# --- الاستيرادات المحدثة ---
 from core.apollo_orchestrator import apollo
-# استيراد نماذج البيانات اللازمة لمحاكاة المخطط
-try:
-    from agents.blueprint_architect_agent import StoryBlueprint, ChapterOutline
-except ImportError:
-    from ..agents.blueprint_architect_agent import StoryBlueprint, ChapterOutline
+# نفترض أن ingestion و context engine موجودان في مجلد engines
+from engines.advanced_context_engine import AdvancedContextEngine
+# استيراد نماذج البيانات
+from agents.blueprint_architect_agent import StoryBlueprint, ChapterOutline
 
-# --- إعدادات التسجيل ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(name)s] - %(levelname)s - %(message)s')
 logger = logging.getLogger("WorkflowManager")
 
 class WorkflowManager:
     """
-    يدير خطوط الإنتاج الإبداعية (Pipelines) التي تتكون من عدة مهام متسلسلة.
-    يعمل كطبقة عليا لتنسيق العمليات المعقدة عبر ApolloOrchestrator.
+    يدير خطوط الإنتاج الإبداعية الكاملة (Pipelines) من البداية إلى النهاية.
     """
     def __init__(self):
         self.orchestrator = apollo
+        self.context_engine = AdvancedContextEngine()
         self.active_pipelines: Dict[str, Dict[str, Any]] = {}
 
-    async def create_short_story_from_idea(
+    async def create_narrative_from_text(
         self,
         project_id: str,
-        initial_prompt: str,
-        genre_hint: str = "دراما اجتماعية",
-        num_chapters: int = 3 # قصة قصيرة
+        source_text: str,
+        genre_hint: str = "دراما تاريخية",
+        num_chapters: int = 3
     ) -> Dict[str, Any]:
         """
-        خط إنتاج كامل ومبسّط: يولد فكرة، ثم يبني مخططًا وهميًا، ثم يكتب الفصول.
+        خط الإنتاج الرئيسي: يأخذ نصًا خامًا ويحوله إلى قصة قصيرة متكاملة.
         """
-        pipeline_id = f"short_story_{project_id}"
-        logger.info(f"🚀 [{pipeline_id}] Starting 'Short Story From Idea' Pipeline...")
+        pipeline_id = f"narrative_{project_id}"
+        logger.info(f"🚀 [{pipeline_id}] Starting 'Text-to-Narrative' Pipeline...")
         self.active_pipelines[pipeline_id] = {"status": "running", "steps": {}}
         
         try:
-            # --- المرحلة 1: توليد الفكرة الرئيسية ---
-            logger.info(f"[{pipeline_id}] STAGE 1: Generating a compelling story idea...")
-            idea_context = {"genre_hint": genre_hint, "theme_hint": initial_prompt}
-            idea_result = await self.orchestrator.run_refinable_task("generate_idea", idea_context)
-            
-            if idea_result.get("status") != "success":
-                raise RuntimeError(f"Idea generation failed: {idea_result.get('message')}")
-            
-            final_idea = idea_result.get("final_content", {}).get("content", {})
-            self.active_pipelines[pipeline_id]["steps"]["idea_generation"] = idea_result
-            logger.info(f"[{pipeline_id}] ✅ Idea generated: '{final_idea.get('premise')}'")
+            # --- المرحلة 1: الفهم والتحليل العميق ---
+            logger.info(f"[{pipeline_id}] STAGE 1: Deep analysis of the source text...")
+            knowledge_base = await self.context_engine.analyze_text(source_text)
+            self.active_pipelines[pipeline_id]["steps"]["knowledge_base"] = knowledge_base.dict()
+            logger.info(f"[{pipeline_id}] ✅ KnowledgeBase created.")
 
-            # --- المرحلة 2: بناء المخطط السردي (محاكاة حاليًا) ---
-            logger.info(f"[{pipeline_id}] STAGE 2: Building a narrative blueprint (Mocked)...")
-            # هذه الخطوة سيتم استبدالها باستدعاء حقيقي لـ `develop_story_blueprint` بعد تفعيله
-            story_blueprint = self._mock_blueprint_creation(final_idea, num_chapters)
-            self.active_pipelines[pipeline_id]["steps"]["blueprint_creation"] = story_blueprint.dict()
-            logger.info(f"[{pipeline_id}] ✅ Blueprint created with {len(story_blueprint.chapters)} chapters.")
+            # --- المرحلة 2: بناء المخطط السردي ---
+            logger.info(f"[{pipeline_id}] STAGE 2: Developing a narrative blueprint...")
+            blueprint_context = {"knowledge_base": knowledge_base.dict()}
+            blueprint_result = await self.orchestrator.run_task("develop_blueprint", blueprint_context)
+            if blueprint_result.get("status") != "success":
+                raise RuntimeError(f"Blueprint creation failed: {blueprint_result.get('message')}")
 
-            # --- المرحلة 3: كتابة الفصول بناءً على المخطط ---
-            logger.info(f"[{pipeline_id}] STAGE 3: Composing chapters based on the blueprint...")
+            final_blueprint_dict = blueprint_result.get("final_content").get("blueprint")
+            final_blueprint = StoryBlueprint.parse_obj(final_blueprint_dict)
+            self.active_pipelines[pipeline_id]["steps"]["blueprint_creation"] = final_blueprint.dict()
+            logger.info(f"[{pipeline_id}] ✅ Blueprint developed successfully.")
+
+            # --- المرحلة 3: كتابة الفصول ---
+            logger.info(f"[{pipeline_id}] STAGE 3: Composing chapters...")
             composed_chapters = []
-            for i, chapter_outline in enumerate(story_blueprint.chapters):
+            for i, chapter_outline_data in enumerate(final_blueprint.chapters):
+                # التأكد من أن chapter_outline_data هو كائن ChapterOutline
+                chapter_outline = ChapterOutline.parse_obj(chapter_outline_data)
                 logger.info(f"  -> Composing Chapter {i+1}: '{chapter_outline.title}'")
                 chapter_context = {"chapter_outline": chapter_outline}
+                chapter_result = await self.orchestrator.run_task("compose_chapter", chapter_context)
                 
-                chapter_result = await self.orchestrator.run_refinable_task("compose_chapter", chapter_context)
-                
-                if chapter_result.get("status") != "success":
-                    logger.warning(f"    ⚠️ Could not compose chapter {i+1}. Skipping.")
-                    continue
-                
-                composed_chapters.append(chapter_result.get("final_content"))
+                if chapter_result.get("status") == "success":
+                    composed_chapters.append(chapter_result.get("final_content"))
             
             self.active_pipelines[pipeline_id]["steps"]["chapter_composition"] = composed_chapters
-            if not composed_chapters:
-                raise RuntimeError("Failed to compose any chapters for the story.")
+            logger.info(f"[{pipeline_id}] ✅ Chapters composed.")
             
-            logger.info(f"[{pipeline_id}] ✅ All chapters composed.")
-
             # --- المرحلة 4: تجميع المنتج النهائي ---
-            logger.info(f"[{pipeline_id}] STAGE 4: Assembling the final product...")
             final_product = {
-                "title": final_idea.get("title", "قصة بدون عنوان"),
-                "idea": final_idea,
-                "blueprint": story_blueprint.dict(),
-                "full_text": "\n\n---\n\n".join([ch.get("chapter_content", "") for ch in composed_chapters])
+                "title": f"رواية مستوحاة من: {source_text[:20]}...",
+                "knowledge_base_summary": {
+                    "entities": len(knowledge_base.entities),
+                    "relationships": len(knowledge_base.relationship_graph)
+                },
+                "blueprint": final_blueprint.dict(),
+                "chapters": composed_chapters
             }
             
             self.active_pipelines[pipeline_id].update({"status": "completed", "final_product": final_product})
@@ -99,29 +92,7 @@ class WorkflowManager:
             self.active_pipelines[pipeline_id].update({"status": "failed", "error": str(e)})
             raise
 
-    def _mock_blueprint_creation(self, idea: Dict, num_chapters: int) -> StoryBlueprint:
-        """
-        دالة وهمية لإنشاء مخطط. سيتم استبدالها بوكيل حقيقي لاحقًا.
-        """
-        chapters = []
-        emotional_arc = ["الأمل", "الصراع", "الندم", "القبول", "السلام"]
-        for i in range(num_chapters):
-            chapter_outline = ChapterOutline(
-                title=f"الفصل {i+1}: مرحلة جديدة",
-                summary=f"هذا الفصل يركز على تطور الشخصية الرئيسية في مواجهة التحديات المستوحاة من فكرة: {idea.get('premise')}",
-                emotional_focus=emotional_arc[i % len(emotional_arc)],
-                key_events=[f"حدث رئيسي {i+1}-1", f"حدث رئيسي {i+1}-2"],
-                character_arcs={"البطل": "يخطو خطوة جديدة في رحلته."}
-            )
-            chapters.append(chapter_outline)
-            
-        return StoryBlueprint(
-            introduction=f"مقدمة للقصة التي تدور حول: {idea.get('premise')}",
-            chapters=chapters,
-            conclusion="خاتمة تترك أثرًا عميقًا لدى القارئ."
-        )
-
-# --- قسم الاختبار المتكامل ---
+# --- قسم الاختبار النهائي ---
 async def main_test():
     import os
     from dotenv import load_dotenv
@@ -132,37 +103,42 @@ async def main_test():
         return
 
     logger.info("\n" + "="*80)
-    logger.info("🔧 WorkflowManager - Full Story Generation Pipeline Test 🔧")
+    logger.info("🔧 WorkflowManager - FULL End-to-End Test 🔧")
     logger.info("="*80)
     
     manager = WorkflowManager()
     
-    # تعريف متطلبات القصة
-    project_id = "story_001"
-    initial_prompt = "رجل يكتشف أن ذكرياته ليست ملكه."
-    genre_hint = "خيال علمي نفسي"
-    
+    # نص تاريخي عن صالح بن يوسف كمصدر
+    source_text = """
+    كان صالح بن يوسف زعيماً وطنياً تونسياً، اختلف مع الحبيب بورقيبة حول استراتيجية الاستقلال.
+    آمن بن يوسف بضرورة الكفاح المسلح والاستقلال التام والفوري عن فرنسا، بينما فضل بورقيبة نهج المراحل والتفاوض.
+    أدى هذا الخلاف إلى انقسام حاد في الحزب الدستوري الجديد وفي الشارع التونسي. 
+    في مؤتمر صفاقس عام 1955، تم تجريد بن يوسف من مناصبه. شعر بالخذلان والمرارة.
+    لاحقاً، تم اغتياله في ألمانيا عام 1961 في ظروف غامضة، مما ترك جرحاً عميقاً في تاريخ تونس الحديث.
+    """
+
     try:
-        # تشغيل سير العمل الكامل
-        pipeline_result = await manager.create_short_story_from_idea(
-            project_id=project_id,
-            initial_prompt=initial_prompt,
-            genre_hint=genre_hint,
-            num_chapters=2 # قصة قصيرة جدًا للاختبار السريع
+        pipeline_result = await manager.create_narrative_from_text(
+            project_id="salah_ben_youssef_story",
+            source_text=source_text,
+            num_chapters=2 # للاختبار السريع
         )
         
-        # طباعة النتائج النهائية
-        print("\n--- ✅ Pipeline Completed Successfully! ---")
+        print("\n--- ✅ Pipeline Completed! Final Product Summary: ---")
         final_product = pipeline_result.get('final_product', {})
         
         print(f"\n**Title:** {final_product.get('title')}")
-        print("\n**Generated Idea:**")
-        print(json.dumps(final_product.get('idea'), indent=2, ensure_ascii=False))
+        print("\n**Generated Blueprint Summary:**")
+        blueprint = final_product.get('blueprint', {})
+        print(f"  - Main Conflict: {blueprint.get('main_conflict')}")
+        print(f"  - Themes: {blueprint.get('themes')}")
+        print(f"  - Chapters: {len(blueprint.get('chapters', []))}")
         
-        print("\n**Full Story Text:**")
-        print("--------------------")
-        print(final_product.get('full_text'))
-        print("--------------------")
+        print("\n**Generated Chapters:**")
+        for i, chapter in enumerate(final_product.get('chapters', [])):
+            print(f"  --- Chapter {i+1}: {chapter.get('title')} ---")
+            print(f"  Content snippet: {chapter.get('chapter_content', '')[:100]}...")
+            print(f"  Quality Score: {chapter.get('quality_score')}")
 
     except Exception as e:
         logger.error(f"❌ Workflow test failed at the highest level: {e}", exc_info=True)
