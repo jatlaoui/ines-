@@ -1,138 +1,200 @@
-# core/workflow_manager.py (النسخة الكاملة مع خط الإنتاج المسرحي التونسي)
+# core/workflow_manager.py (الإصدار المحدث بالكامل)
 import logging
-from typing import Dict, Any, List, Callable, Optional, Union
 import json
 import asyncio
+from typing import Dict, Any, List, Optional, Callable
 
+# استيراد المنسق المحدث والمحركات
 from core.apollo_orchestrator import apollo
 from ingestion.ingestion_engine import InputType, ingestion_engine
-# ... (استيراد نماذج البيانات إذا لزم الأمر)
+from advanced_context_engine import AdvancedContextEngine # لاستخلاص قاعدة المعرفة الأولية
 
+# --- إعدادات التسجيل ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [WorkflowManager] - %(levelname)s - %(message)s')
 logger = logging.getLogger("WorkflowManager")
 
 class WorkflowManager:
     """
-    يدير خطوط الإنتاج الإبداعية (Pipelines) التي تتكون من عدة مهام متسلسلة.
+    يدير خطوط الإنتاج الإبداعية المعقدة (Pipelines)، وينسق سلسلة من المهام
+    التي ينفذها "أبولو" لإنتاج أعمال إبداعية عالية الجودة.
     """
     def __init__(self):
         self.orchestrator = apollo
         self.ingestion_engine = ingestion_engine
+        self.context_engine = AdvancedContextEngine()
         self.active_pipelines: Dict[str, Dict[str, Any]] = {}
 
-    # --- دالة مساعدة لإدارة التفاعل مع المستخدم ---
-    async def _handle_user_feedback(self, pipeline_id, step_name, step_result, user_feedback_fn, config):
-        # ... (الكود كما هو، لا تغيير هنا)
-        pass
-
-    # --- خط الإنتاج الموحد والأساسي ---
-    async def transmute_witness(
+    async def run_deep_analysis_pipeline(
         self,
-        user_id: str, project_id: str, source: Any, input_type: InputType,
-        creation_config: Dict[str, Any], user_feedback_fn: Optional[Callable] = None
+        project_id: str,
+        source_text: str
     ) -> Dict[str, Any]:
         """
-        خط الإنتاج الموحد الجديد: يستوعب أي شاهد ويحوله إلى إبداع.
+        خط إنتاج متخصص لإجراء تحليل عميق وشامل لأي نص.
         """
-        pipeline_id = f"transmute_pipeline_{project_id}"
-        logger.info(f"[{pipeline_id}] Starting 'Witness Transmutation' Pipeline")
+        pipeline_id = f"analysis_pipeline_{project_id}"
+        logger.info(f"🚀 [{pipeline_id}] Starting 'Deep Analysis' Pipeline...")
         self.active_pipelines[pipeline_id] = {"status": "running", "steps": {}}
 
         try:
-            # STEP 0: استيعاب الشاهد
+            # الخطوة 1: بناء قاعدة المعرفة الأساسية
+            logger.info(f"[{pipeline_id}] STEP 1: Building initial Knowledge Base...")
+            kb = await self.context_engine.analyze_text(source_text)
+            self.active_pipelines[pipeline_id]["steps"]["knowledge_base"] = kb.dict()
+
+            # الخطوة 2: تشغيل مهام التحليل المتخصصة بالتوازي
+            logger.info(f"[{pipeline_id}] STEP 2: Running specialized analysis tasks...")
+            analysis_tasks = {
+                "psychological_analysis": self.orchestrator.run_task(
+                    "analyze_psychological_profile", {"character_description": source_text}
+                ),
+                "social_conflict_map": self.orchestrator.run_task(
+                    "map_social_conflicts", {"setting_description": source_text, "social_groups": [e.name for e in kb.entities if e.type == 'group']}
+                ),
+                "symbolism_analysis": self.orchestrator.run_task(
+                    "interpret_dreams_and_symbols", {"text_content": source_text}
+                )
+            }
+            
+            results = await asyncio.gather(*analysis_tasks.values(), return_exceptions=True)
+            analysis_results = dict(zip(analysis_tasks.keys(), results))
+
+            self.active_pipelines[pipeline_id]["steps"]["specialized_analyses"] = analysis_results
+
+            # الخطوة 3: تجميع التقرير النهائي
+            logger.info(f"[{pipeline_id}] STEP 3: Compiling final analysis report...")
+            final_report = {
+                "knowledge_base": kb.dict(),
+                **analysis_results
+            }
+
+            self.active_pipelines[pipeline_id].update({"status": "completed", "final_report": final_report})
+            logger.info(f"✅ [{pipeline_id}] Deep Analysis Pipeline Completed Successfully.")
+            return self.active_pipelines[pipeline_id]
+
+        except Exception as e:
+            logger.error(f"❌ [{pipeline_id}] Pipeline failed: {e}", exc_info=True)
+            self.active_pipelines[pipeline_id].update({"status": "failed", "error": str(e)})
+            raise
+
+    async def transmute_witness_to_creation(
+        self,
+        project_id: str, 
+        source: Any, 
+        input_type: InputType,
+        creation_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        خط الإنتاج الرئيسي والمحسن: يحول أي "شاهد" (مصدر) إلى عمل إبداعي
+        عبر مراحل التحليل العميق، والعصف الذهني التعاوني، والكتابة المحسنة.
+        """
+        pipeline_id = f"transmutation_pipeline_{project_id}"
+        logger.info(f"🚀 [{pipeline_id}] Starting Advanced 'Witness Transmutation' Pipeline...")
+        self.active_pipelines[pipeline_id] = {"status": "running", "steps": {}}
+
+        try:
+            # --- المرحلة 1: الاستيعاب والتحليل الأولي ---
+            logger.info(f"[{pipeline_id}] STAGE 1: Ingestion & Initial Analysis...")
             ingestion_result = await self.ingestion_engine.ingest(source, input_type)
             if not ingestion_result.success:
                 raise ValueError(f"Ingestion failed: {ingestion_result.error}")
             
-            # محاكاة KnowledgeBase الآن
-            knowledge_base = {"raw_text": ingestion_result.text_content, "metadata": ingestion_result.metadata}
-            self.active_pipelines[pipeline_id]["steps"]["knowledge_base"] = knowledge_base
+            source_text = ingestion_result.text_content
+            self.active_pipelines[pipeline_id]["steps"]["ingestion"] = {"text_length": len(source_text), "metadata": ingestion_result.metadata}
 
-            # STEP 1: التوجيه إلى خط الإنتاج الفرعي
-            creative_form = creation_config.get("creative_form", "novel")
-            logger.info(f"[{pipeline_id}] ==> Routing to '{creative_form}' sub-pipeline...")
+            # استخدام خط الإنتاج التحليلي للحصول على قاعدة معرفة معززة
+            analysis_report = await self.run_deep_analysis_pipeline(f"{project_id}_analysis", source_text)
+            enriched_kb = analysis_report.get("final_report", {})
+            self.active_pipelines[pipeline_id]["steps"]["deep_analysis"] = enriched_kb
 
-            sub_pipelines = {
-                "novel": self._run_novel_sub_pipeline,
-                "poem": self._run_poem_sub_pipeline,
-                "tunisian_play": self._run_tunisian_play_sub_pipeline, # <-- خط الإنتاج الجديد
+            # --- المرحلة 2: التفكير والإبداع التعاوني ---
+            logger.info(f"[{pipeline_id}] STAGE 2: Collaborative Ideation...")
+            
+            # ملاحظة: يتطلب تهيئة جلسة تعاونية أولاً
+            # collaboration_session = self.orchestrator.collaboration_system.create_collaboration_session(...)
+            
+            brainstorm_context = {
+                "session_id": "temp_session_123", # يجب أن تكون ديناميكية
+                "topic": f"أفكار إبداعية مستوحاة من النص الذي يبدأ بـ: '{source_text[:50]}...'",
+                "max_ideas_per_agent": 3
             }
+            # brainstorming_result = await self.orchestrator.run_task(
+            #     "collaborative_brainstorming", brainstorm_context
+            # )
+            # self.active_pipelines[pipeline_id]["steps"]["brainstorming"] = brainstorming_result
+            logger.warning("Skipping collaborative brainstorming as it requires a live session.")
             
-            sub_pipeline_fn = sub_pipelines.get(creative_form)
-            if not sub_pipeline_fn:
-                raise ValueError(f"Creative form '{creative_form}' is not supported.")
+            # بدلاً من ذلك، سنستخدم مهمة الإنشاء الفردي القابلة للتحسين
+            idea_generation_result = await self.orchestrator.run_task(
+                "generate_novel_idea",
+                context={"genre_hint": creation_config.get("genre", "إثارة وغموض"), "enriched_kb": enriched_kb}
+            )
+            self.active_pipelines[pipeline_id]["steps"]["idea_generation"] = idea_generation_result
             
-            final_product = await sub_pipeline_fn(pipeline_id, knowledge_base, creation_config, user_feedback_fn)
+            # --- المرحلة 3: التحكيم والتخطيط ---
+            logger.info(f"[{pipeline_id}] STAGE 3: Arbitration & Blueprinting...")
+            selected_idea = idea_generation_result.get("final_content")
+            
+            # arbitrate_context = {"content": json.dumps(selected_idea, ensure_ascii=False), "content_type": "idea"}
+            # arbitration_result = await self.orchestrator.run_task("arbitrate_content_quality", arbitrate_context)
+            # self.active_pipelines[pipeline_id]["steps"]["idea_arbitration"] = arbitration_result
+            logger.warning("Skipping idea arbitration as it requires a live DB/LLM connection.")
+
+            # if arbitration_result.get("overall_score", 0) < 60:
+            #     raise ValueError("The generated idea did not pass the quality arbitration.")
+
+            blueprint_result = await self.orchestrator.run_task(
+                "develop_story_blueprint",
+                context={"idea": selected_idea, "knowledge_base": enriched_kb}
+            )
+            self.active_pipelines[pipeline_id]["steps"]["story_blueprint"] = blueprint_result
+
+            # --- المرحلة 4: الإنتاج الإبداعي ---
+            logger.info(f"[{pipeline_id}] STAGE 4: Creative Production...")
+            story_blueprint = blueprint_result.get("final_content")
+            # هنا يمكننا المرور على الفصول وكتابتها، لكننا سنكتفي بالمنتجات النهائية للمراحل
+            # for chapter_outline in story_blueprint.chapters:
+            #     ...
+
+            final_product = {
+                "idea": selected_idea,
+                "blueprint": story_blueprint
+            }
 
             self.active_pipelines[pipeline_id].update({"status": "completed", "final_product": final_product})
+            logger.info(f"✅ [{pipeline_id}] Advanced Transmutation Pipeline Completed Successfully.")
             return self.active_pipelines[pipeline_id]
 
         except Exception as e:
-            logger.error(f"[{pipeline_id}] Pipeline failed: {e}")
+            logger.error(f"❌ [{pipeline_id}] Pipeline failed: {e}", exc_info=True)
             self.active_pipelines[pipeline_id].update({"status": "failed", "error": str(e)})
             raise
 
-    # --- خطوط الإنتاج الفرعية (Sub-Pipelines) ---
+# --- قسم الاختبار ---
+async def main_test():
+    logger.info("\n" + "="*80)
+    logger.info("🔧 WorkflowManager - Advanced Pipeline Test 🔧")
+    logger.info("="*80)
+    
+    manager = WorkflowManager()
+    
+    # مثال لنص خام
+    sample_text = "في قرية صغيرة تقع على حافة الصحراء، كان الشيخ حكيم رجلاً يحترمه الجميع. لكن ابنه خالد كان متمرداً، يحلم بالمدينة وأضوائها. صراع بين التقاليد والحداثة كان يلوح في الأفق، خاصة مع وصول شركة تعدين غامضة تريد شراء أراضي القرية."
 
-    async def _run_novel_sub_pipeline(self, pipeline_id, kb, config, feedback_fn):
-        logger.info(f"[{pipeline_id}] -> Engaging Novel Production Sub-Pipeline...")
-        # ... (منطق كتابة الرواية)
-        return {"result": "Novel sub-pipeline executed."}
+    # اختبار خط إنتاج التحليل العميق
+    logger.info("\n--- TESTING DEEP ANALYSIS PIPELINE ---")
+    try:
+        analysis_pipeline_result = await manager.run_deep_analysis_pipeline(
+            project_id="deep_dive_001",
+            source_text=sample_text
+        )
+        print("✅ Deep Analysis Pipeline Result (Summary):")
+        # طباعة ملخص فقط لتجنب الإطالة
+        print(f"Knowledge Base Entities: {len(analysis_pipeline_result['final_report']['knowledge_base']['entities'])}")
+        print(f"Psychological Analysis: {'Success' if 'content' in analysis_pipeline_result['final_report']['psychological_analysis'] else 'Failed'}")
+        
+    except Exception as e:
+        logger.error(f"❌ Deep analysis pipeline test failed: {e}", exc_info=True)
 
-    async def _run_poem_sub_pipeline(self, pipeline_id, kb, config, feedback_fn):
-        logger.info(f"[{pipeline_id}] -> Engaging Poem Production Sub-Pipeline...")
-        # ... (منطق كتابة القصيدة)
-        return {"result": "Poem sub-pipeline executed."}
-        
-    # --- خط الإنتاج المسرحي التونسي الجديد ---
-    async def _run_tunisian_play_sub_pipeline(
-        self,
-        pipeline_id: str,
-        knowledge_base: Dict[str, Any],
-        user_config: Dict[str, Any],
-        user_feedback_fn: Optional[Callable] = None
-    ) -> Dict[str, Any]:
-        """
-        خط إنتاج فرعي متخصص لكتابة مسرحية تونسية.
-        """
-        logger.info(f"[{pipeline_id}] -> Engaging Tunisian Playwriting Sub-Pipeline...")
-        
-        # هنا، سنقوم بمحاكاة بناء مسرحية من عدة مشاهد
-        scenes = user_config.get("scenes_outline", []) # يفترض أن المستخدم قدم مخططًا للمشاهد
-        
-        if not scenes:
-             # إذا لم يقدم المستخدم مخططًا، ننشئ واحدًا افتراضيًا
-            scenes = [
-                {
-                    "title": "مشهد 1: المقهى",
-                    "location": "cafe",
-                    "location_name": "مقهى شعبي في تونس العاصمة",
-                    "interactions": [{"character_name": "الحاجة", "character_archetype": "al_hajja", "topic": "الزواج", "mood": "قلق"}]
-                },
-                {
-                    "title": "مشهد 2: السوق",
-                    "location": "souk",
-                    "location_name": "سوق العطارين",
-                    "interactions": [{"character_name": "الشابة", "character_archetype": "al_mothaqafa", "topic": "المستقبل", "mood": "طموح"}]
-                }
-            ]
-
-        full_play_script = ""
-        for i, scene_outline in enumerate(scenes):
-            logger.info(f"[{pipeline_id}] ==> Composing Scene {i+1}: {scene_outline['title']}")
-            
-            scene_result = await self.orchestrator.run_refinable_task(
-                task_name="construct_tunisian_play_scene",
-                initial_context={"scene_outline": scene_outline},
-                user_config=user_config
-            )
-            
-            script_content = scene_result.get("final_content", {}).get("content", {}).get("scene_script", "")
-            full_play_script += script_content + "\n\n"
-        
-        self.active_pipelines[pipeline_id]["steps"]["full_raw_script"] = full_play_script
-        
-        # يمكن إضافة خطوة إخراجية نهائية هنا إذا لزم الأمر
-        
-        logger.info(f"[{pipeline_id}] Tunisian Playwriting pipeline completed.")
-        return {"final_script": full_play_script}
+if __name__ == "__main__":
+    asyncio.run(main_test())
