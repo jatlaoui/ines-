@@ -1,28 +1,15 @@
-# core/apollo_orchestrator.py (الإصدار المحدث بالكامل)
+# core/apollo_orchestrator.py (النسخة المفعّلة والمبسطة)
+
 import logging
 import json
 import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
-# --- استيراد البنية التحتية والوكلاء الجدد والأقوياء ---
-# استيراد الفئة الأساسية الجديدة والمدير
-from agents.base_agent import BaseAgent, AgentManager, AgentState
-
-# استيراد وكلاء متخصصين من الملفات الجديدة
+# --- استيراد الوكلاء المفعّلين والخدمات الأساسية ---
 from agents.idea_generator_agent import IdeaGeneratorAgent
-from agents.blueprint_architect_agent import BlueprintArchitectAgent
 from agents.chapter_composer_agent import ChapterComposerAgent
 from agents.literary_critic_agent import LiteraryCriticAgent
-from agents.psychological_profiler_agent import PsychologicalProfilerAgent
-from agents.cultural_maestro_agent import CulturalMaestroAgent
-from agents.dream_symbol_interpreter_agent import DreamSymbolInterpreterAgent
-from agents.social_conflict_mapper_agent import SocialConflictMapperAgent
-
-# استيراد الأنظمة المتقدمة (الوكلاء الفوقيين Meta-Agents)
-from agents.AdvancedArbitrator import AdvancedArbitrator
-from agents.AgentCollaboration import AgentCollaboration
-
-# استيراد الخدمات الأساسية
+from agents.blueprint_architect_agent import BlueprintArchitectAgent, StoryBlueprint, ChapterOutline # استيراد نماذج البيانات
 from core.refinement_service import RefinementService
 
 # --- إعدادات التسجيل ---
@@ -31,227 +18,157 @@ logger = logging.getLogger("ApolloOrchestrator")
 
 class ApolloOrchestrator:
     """
-    المايسترو "أبولو" - المنسق المركزي لمجتمع الوكلاء.
-    يدير تسجيل الوكلاء، وتوجيه المهام، وتنسيق العمليات الإبداعية المعقدة.
+    المايسترو "أبولو" - المنسق المركزي للعمليات الإبداعية.
+    ينسق بين وكلاء الإنشاء والنقد لتشغيل دورات تحسين متكاملة.
     """
     def __init__(self):
-        self.agent_manager = AgentManager()
-        self.collaboration_system = AgentCollaboration()
-        self.arbitrator = AdvancedArbitrator()
+        # تهيئة الوكلاء الذين سنستخدمهم مباشرة.
+        self.idea_generator = IdeaGeneratorAgent()
+        self.chapter_composer = ChapterComposerAgent()
+        self.literary_critic = LiteraryCriticAgent()
+        # وكلاء آخرون يمكن إضافتهم هنا عند تفعيلهم
+        # self.blueprint_architect = BlueprintArchitectAgent()
         
         self._task_registry = self._build_task_registry()
-        logger.info(f"🚀 Apollo Orchestrator initialized with a powerful Agent Society.")
-        logger.info(f"Registered Tasks: {list(self._task_registry.keys())}")
+        logger.info(f"🚀 Apollo Orchestrator initialized. Registered tasks: {list(self._task_registry.keys())}")
 
     def _build_task_registry(self) -> Dict[str, Dict[str, Any]]:
         """
-        يبني ويهيئ سجل المهام الذي يربط كل مهمة بوكلائها وأنظمتها.
+        يبني سجل المهام الذي يربط كل مهمة بوكلائها ودوالها المناسبة.
+        يركز هذا السجل حاليًا على المهام التي تم تفعيلها.
         """
-        # --- إنشاء وتسجيل جميع الوكلاء ---
-        agents_to_register = [
-            IdeaGeneratorAgent(),
-            BlueprintArchitectAgent(),
-            ChapterComposerAgent(),
-            LiteraryCriticAgent(),
-            PsychologicalProfilerAgent(),
-            CulturalMaestroAgent(),
-            DreamSymbolInterpreterAgent(),
-            SocialConflictMapperAgent(),
-            # يمكن إضافة المزيد من الوكلاء هنا
-        ]
-        
-        for agent in agents_to_register:
-            # نفترض أن كل وكيل لديه خصائص name و capabilities
-            self.agent_manager.register_agent(agent)
-            self.collaboration_system.register_agent(
-                agent.id, agent, agent.name, agent.get_capabilities()
-            )
-
         registry = {
-            # --- 1. مهام التحليل العميق (Analysis Tasks) ---
-            "analyze_psychological_profile": {
-                "description": "إنشاء ملف نفسي عميق لشخصية.",
-                "task_type": "analysis",
-                "handler_agent_name": "المحلل النفسي للشخصيات",
-                "handler_fn_name": "create_character_profile"
-            },
-            "analyze_cultural_elements": {
-                "description": "تحليل العناصر الثقافية في نص.",
-                "task_type": "analysis",
-                "handler_agent_name": "الخبير الثقافي",
-                "handler_fn_name": "enhance_cultural_authenticity" # نفترض أن هذه الدالة تقوم بالتحليل أيضًا
-            },
-            "map_social_conflicts": {
-                "description": "بناء خريطة للصراعات الاجتماعية في السرد.",
-                "task_type": "analysis",
-                "handler_agent_name": "مخطط الصراعات الاجتماعية",
-                "handler_fn_name": "map_social_conflicts"
-            },
-            "interpret_dreams_and_symbols": {
-                "description": "تفسير الأحلام والرموز في نص.",
-                "task_type": "analysis",
-                "handler_agent_name": "مفسر الأحلام والرموز",
-                "handler_fn_name": "generate_symbolic_dream"
+            # مهمة قابلة للتحسين: توليد فكرة
+            "generate_idea": {
+                "description": "توليد فكرة رواية جديدة مع دورة نقد وتحسين.",
+                "creator_agent": self.idea_generator,
+                "creator_fn": self.idea_generator.generate_idea,
+                "critic_agent": self.literary_critic,
+                "critic_fn": self.literary_critic.review_idea, # استخدام دالة نقد الأفكار
+                "default_threshold": 7.0
             },
             
-            # --- 2. مهام الإنشاء القابلة للتحسين (Refinable Creation Tasks) ---
-            "generate_novel_idea": {
-                "description": "توليد فكرة رواية جديدة مع دورة نقد وتحسين.",
-                "task_type": "refinable_creation",
-                "creator_agent_name": "مولد الأفكار الإبداعي",
-                "creator_fn_name": "generate_idea",
-                "critic_agent_name": "الناقد الأدبي",
-                "critic_fn_name": "review_idea", # نفترض وجود دالة نقد للأفكار
-                "default_threshold": 7.5
-            },
-            "develop_story_blueprint": {
-                "description": "تحويل فكرة إلى مخطط سردي متكامل.",
-                "task_type": "refinable_creation",
-                "creator_agent_name": "مهندس المخططات الأدبية",
-                "creator_fn_name": "generate_blueprint", # نفترض وجود هذه الدالة
-                "critic_agent_name": "ناقد المخططات", # نفترض وجود ناقد متخصص
-                "critic_fn_name": "review_blueprint",
+            # مهمة قابلة للتحسين: كتابة فصل
+            "compose_chapter": {
+                "description": "كتابة فصل روائي كامل معزز بالذاكرة الحسية.",
+                "creator_agent": self.chapter_composer,
+                "creator_fn": self.chapter_composer.write_chapter,
+                "critic_agent": self.literary_critic,
+                "critic_fn": self.literary_critic.review_chapter, # استخدام دالة نقد الفصول
                 "default_threshold": 8.0
             },
             
-            # --- 3. مهام تعاونية (Collaborative Tasks) ---
-            "collaborative_brainstorming": {
-                "description": "عقد جلسة عصف ذهني جماعي بين الوكلاء.",
-                "task_type": "collaborative",
-                "handler_system": self.collaboration_system,
-                "handler_fn_name": "start_brainstorming"
-            },
-            
-            # --- 4. مهام التحكيم والجودة (Arbitration Tasks) ---
-            "arbitrate_content_quality": {
-                "description": "تقييم وتصحيح محتوى بواسطة المحكم المتقدم.",
-                "task_type": "arbitration",
-                "handler_system": self.arbitrator,
-                "handler_fn_name": "evaluate_content"
-            },
-            "correct_content_with_arbitrator": {
-                "description": "تصحيح محتوى بشكل متقدم.",
-                "task_type": "arbitration",
-                "handler_system": self.arbitrator,
-                "handler_fn_name": "correct_content"
-            }
+            # --- مهام مستقبلية يمكن إضافتها عند تفعيل وكلائها ---
+            # "develop_blueprint": { ... },
+            # "analyze_psychology": { ... },
+            # "run_collaborative_session": { ... }
         }
-        
         return registry
 
-    async def run_task(
+    async def run_refinable_task(
         self,
         task_name: str,
-        context: Dict[str, Any],
+        initial_context: Dict[str, Any],
         user_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        المنفذ العام الموحد: يشغل أي مهمة مسجلة حسب نوعها.
+        المنفذ العام للمهام القابلة للتحسين (Create -> Critique -> Refine).
         """
-        logger.info(f"▶️ Running task: '{task_name}'")
+        logger.info(f"▶️ Received request to run refinable task: '{task_name}'")
         
         task_def = self._task_registry.get(task_name)
         if not task_def:
-            raise ValueError(f"Task '{task_name}' not defined in the registry.")
+            logger.error(f"❌ Task '{task_name}' not found in registry.")
+            raise ValueError(f"Task '{task_name}' is not a registered refinable task.")
 
         config = user_config or {}
-        task_type = task_def.get("task_type")
-
-        # --- توجيه المهمة حسب نوعها ---
-        if task_type == "analysis":
-            agent = self.agent_manager.find_agent_by_name(task_def["handler_agent_name"])
-            if not agent:
-                raise RuntimeError(f"Agent '{task_def['handler_agent_name']}' not found.")
-            
-            handler_fn = getattr(agent, task_def["handler_fn_name"])
-            return await handler_fn(context)
-
-        elif task_type == "refinable_creation":
-            creator_agent = self.agent_manager.find_agent_by_name(task_def["creator_agent_name"])
-            critic_agent = self.agent_manager.find_agent_by_name(task_def["critic_agent_name"])
-            
-            if not creator_agent or not critic_agent:
-                 raise RuntimeError("Creator or Critic agent not found for task.")
-
-            creator_fn = getattr(creator_agent, task_def["creator_fn_name"])
-            critic_fn = getattr(critic_agent, task_def["critic_fn_name"])
-            
-            refinement_service = RefinementService(
-                creator_fn=creator_fn, critique_fn=critic_fn,
-                quality_threshold=config.get("quality_threshold", task_def["default_threshold"]),
-                max_refinement_cycles=config.get("max_cycles", 2)
-            )
-            return await refinement_service.refine(context=context)
-
-        elif task_type == "collaborative" or task_type == "arbitration":
-            handler_system = task_def["handler_system"]
-            handler_fn = getattr(handler_system, task_def["handler_fn_name"])
-            # تمرير السياق مباشرة إلى أنظمة التعاون والتحكيم
-            return await handler_fn(**context)
-            
-        else:
-            raise ValueError(f"Unsupported task type: '{task_type}'")
+        
+        # إنشاء خدمة التحسين مع الوكلاء والدوال المحددة لهذه المهمة
+        refinement_service = RefinementService(
+            creator_fn=task_def["creator_fn"],
+            critique_fn=task_def["critic_fn"],
+            quality_threshold=config.get("quality_threshold", task_def["default_threshold"]),
+            max_refinement_cycles=config.get("max_cycles", 2)
+        )
+        
+        logger.info(f"Starting refinement service for '{task_name}'...")
+        result = await refinement_service.refine(context=initial_context)
+        
+        return result
 
 # --- إنشاء مثيل وحيد ---
 apollo = ApolloOrchestrator()
 
-# --- قسم الاختبار (مُحدَّث بالكامل) ---
+# --- قسم الاختبار المتكامل ---
 async def main_test():
+    import os
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.getenv("GEMINI_API_KEY"):
+        print("❌ خطأ: متغير البيئة GEMINI_API_KEY غير موجود. يرجى إضافته في ملف .env")
+        return
+
     logger.info("\n" + "="*80)
-    logger.info("🎭 Apollo Orchestrator - Advanced Task Execution Test 🎭")
+    logger.info("🎭 Apollo Orchestrator - Full Creative Cycle Test 🎭")
     logger.info("="*80)
 
-    # --- 1. اختبار مهمة تحليل نفسي (Analysis Task) ---
-    logger.info("\n--- TEST 1: Psychological Profile Analysis ---")
-    try:
-        profile_context = {
-            "character_name": "خالد",
-            "character_description": "شاب انطوائي فقد والده في حادث، ويخاف من الفشل بشدة."
-        }
-        psych_result = await apollo.run_task(
-            task_name="analyze_psychological_profile",
-            context=profile_context
-        )
-        print("✅ Psychological Profile Result:")
-        print(json.dumps(psych_result, indent=2, ensure_ascii=False))
-    except Exception as e:
-        logger.error(f"❌ Psychological analysis failed: {e}", exc_info=True)
+    # --- 1. توليد فكرة أولية وتحسينها ---
+    logger.info("\n--- STEP 1: Generating and Refining a Story Idea ---")
+    idea_context = {
+        "genre_hint": "خيال علمي فلسفي",
+        "theme_hint": "الذاكرة والهوية"
+    }
+    idea_result = await apollo.run_refinable_task(
+        task_name="generate_idea",
+        initial_context=idea_context,
+        user_config={"max_cycles": 1} # دورة تحسين واحدة فقط للفكرة
+    )
+    
+    if idea_result.get("status") != "success":
+        logger.error("Failed to generate an idea. Aborting test.")
+        print(json.dumps(idea_result, indent=2, ensure_ascii=False))
+        return
 
-    # --- 2. اختبار مهمة التحكيم (Arbitration Task) ---
-    logger.info("\n--- TEST 2: Content Arbitration ---")
-    try:
-        # ملاحظة: هذا يتطلب أن تكون llm_service ودوال قاعدة البيانات مهيأة في AdvancedArbitrator
-        # سنقوم بمحاكاة بسيطة للسياق المطلوب
-        arbitration_context = {
-            "content": "كان النص مليء بالأمل، لكنه يفتقر للحبكة. الشخصية الرئيسية كانت سطحية.",
-            "content_type": "chapter",
-            "agent_id": "test_writer_agent"
-        }
-        # arbitrator_result = await apollo.run_task(
-        #     task_name="arbitrate_content_quality",
-        #     context=arbitration_context
-        # )
-        # print("✅ Arbitration Result:", arbitrator_result)
-        print("ℹ️  Arbitration test skipped (requires live DB/LLM connection).")
-    except Exception as e:
-        logger.error(f"❌ Arbitration task failed: {e}", exc_info=True)
+    final_idea = idea_result.get("final_content", {}).get("content", {})
+    logger.info(f"✅ Idea generation complete! Final Score: {idea_result.get('final_score'):.2f}")
+    print("Final Idea:", json.dumps(final_idea, indent=2, ensure_ascii=False))
+
+    # --- 2. بناء مخطط فصل وهمي (لأن وكيل المخططات لم يتم تفعيله بعد) ---
+    logger.info("\n--- STEP 2: Mocking a Chapter Outline based on the Idea ---")
+    mock_chapter_outline = ChapterOutline(
+        title="الفصل الأول: الصدى المفقود",
+        summary=f"نقدم البطل، 'كاي'، وهو فني ذاكرة يعيش في مدينة 'نيو-بابل'. يبدأ في الشك في ذكرياته الخاصة بعد أن يجد قطعة أثرية لا تتوافق مع تاريخه الرسمي. الفكرة الأساسية هي: {final_idea.get('premise')}",
+        emotional_focus="القلق والفضول",
+        key_events=["كاي يقوم بعمله اليومي في 'أرشيف الذاكرة'", "يكتشف القطعة الأثرية الغامضة", "يواجه خللاً في ذاكرته لأول مرة"],
+        character_arcs={"كاي": "ينتقل من الثقة المطلقة بالنظام إلى الشك والبحث عن الحقيقة."}
+    )
+    print("Mock Chapter Outline created.")
+
+    # --- 3. كتابة الفصل الأول وتحسينه ---
+    logger.info("\n--- STEP 3: Composing and Refining the First Chapter ---")
+    chapter_context = {"chapter_outline": mock_chapter_outline}
+    
+    chapter_result = await apollo.run_refinable_task(
+        task_name="compose_chapter",
+        initial_context=chapter_context,
+        user_config={"quality_threshold": 8.5, "max_cycles": 2}
+    )
+    
+    if chapter_result.get("status") != "success":
+        logger.error("Failed to compose the chapter.")
+        print(json.dumps(chapter_result, indent=2, ensure_ascii=False))
+        return
         
-    # --- 3. اختبار مهمة تعاونية (Collaborative Task) ---
-    logger.info("\n--- TEST 3: Collaborative Brainstorming ---")
-    try:
-        # ملاحظة: يتطلب تهيئة الوكلاء في نظام التعاون
-        collaboration_context = {
-            "session_id": "test_session_001", # يفترض أن يتم إنشاؤها أولاً
-            "topic": "كيف يمكن لشخصية انطوائية التغلب على صدمة الماضي؟",
-        }
-        # collaboration_result = await apollo.run_task(
-        #     task_name="collaborative_brainstorming",
-        #     context=collaboration_context
-        # )
-        # print("✅ Collaborative Brainstorming Result:", collaboration_result)
-        print("ℹ️  Collaboration test skipped (requires live session setup).")
-    except Exception as e:
-        logger.error(f"❌ Collaboration task failed: {e}", exc_info=True)
+    final_chapter = chapter_result.get("final_content", {})
+    logger.info(f"✅ Chapter composition complete! Final Score: {chapter_result.get('final_score'):.2f}")
+    logger.info(f"Refinement cycles used: {chapter_result.get('refinement_cycles_used')}")
+    
+    print("\n--- Final Chapter Content ---")
+    print(final_chapter.get("chapter_content"))
+    print("\n--- Final Critique ---")
+    print(json.dumps(chapter_result.get("final_critique"), indent=2, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     asyncio.run(main_test())
