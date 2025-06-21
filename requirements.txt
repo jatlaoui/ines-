@@ -1,0 +1,6 @@
+google-generativeai
+python-dotenv
+pydantic
+beautifulsoup4
+httpx
+cachetools
