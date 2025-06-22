@@ -1,95 +1,109 @@
-# services/web_search_service.py (النسخة الإبداعية)
-
+# services/web_search_service.py (V2 - with Forum Noise Filtering)
 import logging
 import asyncio
-from typing import Dict, Any
+import re
+from typing import Dict, Any, List
 import httpx
 from bs4 import BeautifulSoup
-from newspaper import Article # مكتبة متخصصة لاستخلاص المقالات
-from core.llm_service import llm_service
+from newspaper import Article
+
+from ..core.llm_service import llm_service
 
 logger = logging.getLogger("WebSearchService")
 
 class WebSearchService:
+    """
+    خدمة متقدمة لجلب وتحليل محتوى الويب، مع قدرات متخصصة
+    لتنظيف بيانات المنتديات والشبكات الاجتماعية.
+    """
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=20, follow_redirects=True, http2=True)
-        logger.info("Intelligent Web Explorer initialized.")
+        self.client = httpx.AsyncClient(timeout=25, follow_redirects=True, http2=True)
+        # قائمة بالعبارات والمحددات التي تدل على ضوضاء المنتديات
+        self._forum_noise_patterns = [
+            r'رد مع اقتباس', r'مشاهدة ملفه الشخصي', r'إرسال رسالة خاصة',
+            r'البحث عن كل مشاركات', r'^\s*الكاتب:\s*.*', r'^\s*تاريخ التسجيل:\s*.*',
+            r'^\s*المشاركات:\s*.*', r'\[.*\]', r'مشاركة\s+#\d+', r'عدل سابقا من قبل',
+            r'تعديل/حذف رسالة', r'إقتباس', r'العودة إلى الأعلى'
+        ]
+        logger.info("✅ Advanced Web Search & Scraping Service (V2) Initialized.")
 
-    async def _fetch_and_parse(self, url: str) -> str:
-        """يجلب المحتوى ويحلله بذكاء."""
+    async def _fetch_html(self, url: str) -> Optional[str]:
+        """يجلب محتوى HTML الخام من رابط معين."""
         try:
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
             response = await self.client.get(url, headers=headers)
             response.raise_for_status()
-
-            # استخدام newspaper3k أولاً لأنها أكثر ذكاءً في تحديد المحتوى الرئيسي
-            try:
-                article = Article(url)
-                article.download(input_html=response.content)
-                article.parse()
-                if len(article.text) > 500: # إذا نجحت في استخلاص محتوى جيد
-                    logger.info(f"Successfully scraped with newspaper3k from {url}")
-                    return article.title + "\n\n" + article.text
-            except Exception as e:
-                logger.warning(f"newspaper3k failed for {url}: {e}. Falling back to BeautifulSoup.")
-
-            # الخطة البديلة: BeautifulSoup للتنظيف اليدوي
-            soup = BeautifulSoup(response.content, 'html.parser')
-            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                tag.decompose()
-            
-            body = soup.find('body')
-            return body.get_text(separator='\n', strip=True) if body else ""
-
-        except Exception as e:
+            return response.text
+        except httpx.RequestError as e:
             logger.error(f"Failed to fetch content from {url}. Error: {e}")
+            return None
+
+    def _clean_and_extract_text(self, html_content: str, url: str) -> str:
+        """يستخدم طرقًا متعددة لاستخلاص النص النظيف من HTML."""
+        # المحاولة الأولى: newspaper3k (ممتازة للمقالات)
+        try:
+            article = Article(url, language='ar')
+            article.download(input_html=html_content)
+            article.parse()
+            if len(article.text) > 300: # إذا نجحت في استخلاص محتوى جيد
+                logger.info(f"Successfully scraped with newspaper3k from {url}")
+                return article.title + "\n\n" + article.text
+        except Exception:
+            logger.warning(f"newspaper3k failed for {url}. Falling back to BeautifulSoup.")
+
+        # الخطة البديلة: BeautifulSoup للتنظيف اليدوي
+        soup = BeautifulSoup(html_content, 'html.parser')
+        # إزالة التاغات غير المرغوب فيها
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
+            tag.decompose()
+        
+        body = soup.find('body')
+        if not body:
             return ""
+            
+        return body.get_text(separator='\n', strip=True)
 
     def _filter_forum_noise(self, text: str) -> str:
-        """يزيل الضوضاء الشائعة في المنتديات."""
-        noise_patterns = [
-            r'رد مع اقتباس', r'مشاهدة ملفه الشخصي', r'إرسال رسالة خاصة',
-            r'البحث عن كل مشاركات', r'^\s*الكاتب:.*', r'^\s*تاريخ التسجيل:.*',
-            r'^\s*المشاركات:.*', r'\[.*\]', r'مشاركة\s+#\d+'
-        ]
-        for pattern in noise_patterns:
-            text = re.sub(pattern, '', text, flags=re.MULTILINE)
+        """يزيل الضوضاء الشائعة في المنتديات والتعليقات."""
+        clean_text = text
+        for pattern in self._forum_noise_patterns:
+            clean_text = re.sub(pattern, '', clean_text, flags=re.MULTILINE)
         
-        lines = text.split('\n')
-        # إزالة الأسطر القصيرة جدًا أو الفارغة
-        clean_lines = [line for line in lines if len(line.split()) > 3]
-        return "\n".join(clean_lines)
+        # إزالة الأسطر الفارغة الزائدة
+        lines = clean_text.split('\n')
+        non_empty_lines = [line for line in lines if line.strip()]
+        return "\n".join(non_empty_lines)
 
-    async def get_inspiration_from_url(self, url: str) -> Dict[str, Any]:
+    async def scrape_and_clean_url(self, url: str) -> Dict[str, Any]:
         """
-        الوظيفة الرئيسية الجديدة: تجلب، تنظف، وتلخص المحتوى من رابط للإلهام.
+        الوظيفة الرئيسية للخدمة: تكشط رابطًا، تستخلص النص، وتنظفه.
         """
-        logger.info(f"Seeking inspiration from URL: {url}")
+        logger.info(f"Scraping and cleaning URL: {url}")
         
-        raw_content = await self._fetch_and_parse(url)
-        if not raw_content or len(raw_content) < 200:
-            return {"status": "error", "message": "Content is too short or could not be fetched."}
+        html = await self._fetch_html(url)
+        if not html:
+            return {"status": "error", "message": "Could not fetch HTML content."}
             
-        cleaned_content = self._filter_forum_noise(raw_content)
+        raw_text = self._clean_and_extract_text(html, url)
+        if not raw_text:
+            return {"status": "error", "message": "Could not extract text content."}
         
-        # تلخيص المحتوى للحصول على الجوهر فقط
-        summary_prompt = f"""
-مهمتك: أنت باحث أدبي. قم بقراءة النص التالي واستخلاص جوهره في 3 نقاط رئيسية. ركز على المواضيع، المشاعر، والصور الشعرية المتكررة.
----
-{cleaned_content[:4000]} 
----
-أرجع ردك في شكل نص عادي.
-"""
-        summary = await llm_service.generate_text_response(summary_prompt, temperature=0.3)
+        # تطبيق فلتر خاص بالمنتديات
+        if "forum" in url or "vb" in url or "thread" in url:
+             logger.info("Forum-like URL detected. Applying noise filter.")
+             cleaned_text = self._filter_forum_noise(raw_text)
+        else:
+            cleaned_text = raw_text
 
         return {
             "status": "success",
             "data": {
                 "url": url,
-                "summary": summary,
-                "full_text_for_analysis": cleaned_content # نمرر النص الكامل للتحليل العميق
+                "cleaned_text": cleaned_text,
+                "original_word_count": len(raw_text.split()),
+                "cleaned_word_count": len(cleaned_text.split())
             }
         }
 
 # إنشاء مثيل وحيد
-web_inspiration_service = WebSearchService()
+web_search_service = WebSearchService()
