@@ -392,4 +392,30 @@ self.templates[hyper_narrative_fusion_v1.id] = hyper_narrative_fusion_v1
             input_data={"agent_id": "lore_master", "format": "markdown"},
             dependencies=["task_13_final_review"] # تعتمد على اكتمال كل شيء
         )
-# ...
+# ...# في ملف tools/workflow_templates.py
+
+# ... (في TaskType Enum)
+class TaskType(Enum):
+    # ... (كل الأنواع السابقة)
+    NARRATIVE_FORECAST = "narrative_forecast"
+
+# ... (في فئة AdvancedWorkflowTemplates)
+# ----------------------------------------------------------------------
+# 9. قالب استشارة المنبئ السردي
+# ----------------------------------------------------------------------
+narrative_forecasting_v1 = WorkflowTemplate(
+    id="narrative_forecasting_v1",
+    name="استشارة المنبئ السردي",
+    description="يحلل القصة الحالية ويقدم تقريراً بالمسارات المستقبلية المحتملة.",
+    category="strategic_planning",
+    tasks=[
+        WorkflowTask(
+            id="task_1_forecast",
+            name="توليد التنبؤات السردية",
+            task_type=TaskType.NARRATIVE_FORECAST,
+            # سيتم تمرير السياق (ملفات الشخصيات، الصراعات) من حالة المشروع الحالية
+        ),
+    ]
+)
+# ... تسجيل القالب الجديد
+self.templates[narrative_forecasting_v1.id] = narrative_forecasting_v1
