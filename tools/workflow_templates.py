@@ -375,3 +375,21 @@ hyper_narrative_fusion_v1 = WorkflowTemplate(
 
 # ... تسجيل القالب الجديد
 self.templates[hyper_narrative_fusion_v1.id] = hyper_narrative_fusion_v1
+# في ملف tools/workflow_templates.py
+
+# ... (داخل تعريف قالب long_form_social_play_v1)
+# بعد مهمة المراجعة النهائية
+        WorkflowTask(
+            id="task_13_final_review",
+            name="المراجعة النقدية النهائية",
+            # ...
+        ),
+        # --- [مهمة جديدة] ---
+        WorkflowTask(
+            id="task_14_generate_story_bible",
+            name="إنشاء الكتاب المقدس للقصة",
+            task_type=TaskType.CUSTOM_AGENT_TASK, # يمكن إنشاء نوع مهمة مخصص
+            input_data={"agent_id": "lore_master", "format": "markdown"},
+            dependencies=["task_13_final_review"] # تعتمد على اكتمال كل شيء
+        )
+# ...
