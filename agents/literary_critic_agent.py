@@ -1,201 +1,89 @@
-# agents/literary_critic_agent.py (النسخة المفعّلة)
-
-import asyncio
+# agents/literary_critic_agent.py (V3 - The Comparative Critic)
 import logging
-import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Optional, List
 
-# --- الاستيرادات المحدثة ---
-from .base_agent import BaseAgent, AgentState
-from core.llm_service import llm_service
-# الأدوات المساعدة يمكن تفعيلها لاحقًا إذا كانت مطلوبة
-# from ..tools.text_processing_tools import TextProcessor
-# from ..tools.analysis_tools import LiteraryAnalyzer, StyleAnalyzer
+from .base_agent import BaseAgent
+from ..core.llm_service import llm_service
 
-logger = logging.getLogger(__name__)
-
-# Enum classes can be moved to a shared data_models file later
-class CriticismLevel:
-    GENTLE = "لطيف"
-    CONSTRUCTIVE = "بناء"
-    DETAILED = "مفصل"
+logger = logging.getLogger("LiteraryCriticAgent")
 
 class LiteraryCriticAgent(BaseAgent):
     """
-    وكيل التحرير والنقد الأدبي المتخصص.
-    يقوم بتقييم أنواع مختلفة من المحتوى الإبداعي وتقديم ملاحظات بناءة.
+    الناقد الأدبي المقارن (V3).
+    لم يعد يعطي درجات مطلقة، بل يحلل النص، يصف خصائصه،
+    ويولد بدائل بأساليب مختلفة ليختار منها المستخدم.
     """
-    
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
-            agent_id=agent_id or "literary_critic_agent",
-            name="الناقد الأدبي",
-            description="يقدم نقدًا أدبيًا دقيقًا وبناءً للنصوص والأفكار والمخططات."
+            agent_id=agent_id or "literary_critic",
+            name="الناقد الأدبي المقارن",
+            description="يحلل النصوص ويقدم بدائل إبداعية بدلاً من التقييم الرقمي."
         )
-        self.criticism_criteria = {
-            "idea": ["originality", "feasibility", "engagement_potential", "depth"],
-            "blueprint": ["coherence", "pacing", "character_arc_clarity", "plot_strength"],
-            "chapter": ["prose_quality", "emotional_impact", "dialogue_realism", "flow"]
-        }
-        logger.info("LiteraryCriticAgent initialized and connected to the live LLM service.")
 
-    # --- الدوال العامة لواجهة النقد ---
-    
-    def review_idea(self, idea_content: Dict[str, Any]) -> Dict[str, Any]:
+    async def provide_comparative_critique(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        يراجع فكرة قصة ويعطي تقييمًا وملاحظات.
-        (تم تكييفها من `idea_critic_agent.py` الأصلي)
+        الوظيفة الرئيسية: يحلل النص ويولد 3 نسخ بديلة لفقرة محورية.
+        'context' يجب أن يحتوي على:
+        - text_content: النص الكامل للمراجعة.
+        - pivotal_paragraph: الفقرة المحورية التي سيتم إعادة كتابتها.
         """
-        logger.info(f"Critiquing idea: '{idea_content.get('premise', 'N/A')}'")
-        issues: List[str] = []
-        score = 10.0
+        text_content = context.get("text_content")
+        pivotal_paragraph = context.get("pivotal_paragraph")
 
-        premise = idea_content.get("premise", "")
-        if "تاريخ مزيف" in premise or "اكتشاف سر" in premise:
-            score -= 2.0
-            issues.append("الفكرة تحتوي على عناصر شائعة (مثل التاريخ المزيف). حاول إيجاد زاوية جديدة.")
-        if len(premise.split()) < 10:
-            score -= 1.5
-            issues.append("الفكرة الأساسية موجزة جدًا وتحتاج إلى تفاصيل أكثر لتحديد إمكانية تطويرها.")
-        if "منظمة سرية" not in premise and "مطارد" not in premise:
-            score -= 1.0
-            issues.append("الفكرة تفتقر إلى عنصر صراع أو تشويق واضح لجذب القارئ.")
+        if not text_content or not pivotal_paragraph:
+            return {"status": "error", "message": "Text content and a pivotal paragraph are required."}
 
-        return {
-            "overall_score": max(min(score, 10.0), 0.0),
-            "issues": issues, # سيتم استخدامها كـ feedback
-        }
-        
-    def review_blueprint(self, blueprint_content: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        يراجع مخطط قصة (StoryBlueprint) ويعطي تقييمًا.
-        (تم تكييفها من `blueprint_critic_agent.py` الأصلي)
-        """
-        logger.info(f"Critiquing blueprint for: '{blueprint_content.get('introduction', '')[:30]}...'")
-        issues: List[str] = []
-        score = 10.0
+        logger.info("Providing comparative critique...")
 
-        if not blueprint_content.get("introduction") or len(blueprint_content.get("introduction", "").split()) < 15:
-            issues.append("المقدمة قصيرة جدًا أو سطحية.")
-            score -= 1.5
-        if len(blueprint_content.get("chapters", [])) < 3:
-            issues.append("عدد الفصول قليل جدًا (أقل من 3).")
-            score -= 2.0
-        
-        # يمكن إضافة المزيد من الفحوصات هنا
-
-        return {
-            "overall_score": score,
-            "issues": issues,
-        }
-
-    async def review_chapter(self, chapter_content: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        مراجعة شاملة لفصل مكتوب. تستخدم الـ LLM لتقييم متعدد الأبعاد.
-        """
-        logger.info(f"Performing comprehensive critique on chapter: '{chapter_content.get('title', 'Untitled')}'")
-        text_to_review = chapter_content.get("chapter_content", "")
-        if not text_to_review:
-            return {"overall_score": 0.0, "issues": ["المحتوى فارغ."]}
-
-        prompt = self._build_critique_prompt(
-            text_to_review,
-            context=f"هذا الفصل بعنوان '{chapter_content.get('title')}' ويهدف إلى إيصال شعور بـ'{chapter_content.get('emotional_focus', 'N/A')}'."
-        )
-        
-        response = await llm_service.generate_json_response(prompt, temperature=0.4)
+        prompt = self._build_critique_prompt(text_content, pivotal_paragraph)
+        response = await llm_service.generate_json_response(prompt, temperature=0.7)
 
         if "error" in response:
-            logger.error(f"LLM critique failed: {response.get('details')}")
-            # في حالة الفشل، نرجع تقييمًا افتراضيًا
-            return {"overall_score": 5.0, "issues": ["فشل الناقد الآلي في تقييم النص."]}
-        
-        return response
+            return {"status": "error", "message": "LLM call failed for critique.", "details": response}
 
-    # --- دالة بناء الـ Prompt ---
+        return {"status": "success", "content": {"critique_report": response}}
 
-    def _build_critique_prompt(self, text_to_review: str, context: str) -> str:
-        """
-        يبني prompt مفصلاً ليقوم الـ LLM بدور الناقد الأدبي.
-        """
+    def _build_critique_prompt(self, full_text: str, pivotal_paragraph: str) -> str:
         return f"""
-مهمتك: أنت ناقد أدبي عربي محترف وخبير. قم بتقييم النص التالي بدقة وموضوعية.
-**سياق النص:** {context}
+مهمتك: أنت محرر أدبي خبير ومبدع. مهمتك هي تحليل النص التالي وتقديم نقد وصفي، ثم إعادة كتابة "الفقرة المحورية" بثلاثة أساليب مختلفة.
 
-**النص للمراجعة:**
+**النص الكامل (للسياق العام):**
 ---
-{text_to_review}
+{full_text[:3000]}
 ---
 
-**تعليمات النقد:**
-1.  اقرأ النص بعناية.
-2.  قم بتقييم النص بناءً على المعايير التالية، مع إعطاء كل معيار درجة من 1 إلى 10.
-3.  اكتب نقاط القوة الرئيسية (2-3 نقاط).
-4.  اكتب أهم نقاط الضعف التي تحتاج إلى تحسين (2-3 نقاط)، واجعلها ملاحظات قابلة للتنفيذ.
-5.  احسب درجة إجمالية (overall_score) كمتوسط لدرجات المعايير.
+**الفقرة المحورية للتحليل وإعادة الكتابة:**
+---
+{pivotal_paragraph}
+---
 
-أرجع ردك **حصريًا** بتنسيق JSON صالح. يجب أن يتبع الرد المخطط التالي تمامًا:
+**المطلوب:**
+1.  **التحليل الوصفي (descriptive_analysis):**
+    *   صف الأسلوب الحالي للفقرة المحورية. ركز على: النبرة (tone)، الإيقاع (pacing)، وكثافة الصور (imagery_density). لا تعطِ درجات.
+
+2.  **البدائل الإبداعية (creative_alternatives):**
+    *   أعد كتابة "الفقرة المحورية" ثلاث مرات، كل مرة بأسلوب مختلف:
+        *   **البديل الحسي (sensory_version):** ركز على الحواس الخمس (الأصوات، الروائح، الملمس) لغمر القارئ في المشهد.
+        *   **البديل النفسي (psychological_version):** ركز على الأفكار والمشاعر الداخلية للشخصية (المونولوج الداخلي).
+        *   **البديل الحركي (action_oriented_version):** ركز على الأفعال والحركة السريعة لدفع الأحداث.
+
+أرجع ردك **حصريًا** بتنسيق JSON صالح يتبع الهيكل التالي:
 {{
-  "scores": {{
-    "prose_quality": "float // جودة النثر واللغة والأسلوب.",
-    "emotional_impact": "float // مدى قدرة النص على إثارة المشاعر وتحقيق التركيز العاطفي المطلوب.",
-    "plot_progression": "float // مدى مساهمة النص في دفع أحداث القصة إلى الأمام.",
-    "character_consistency": "float // مدى اتساق تصرفات وأقوال الشخصيات مع ملفاتها المعروفة."
+  "descriptive_analysis": {{
+    "tone": "string",
+    "pacing": "string",
+    "imagery_density": "string (e.g., منخفضة، متوسطة، عالية)"
   }},
-  "strengths": [
-    "string // نقطة قوة واضحة ومحددة.",
-    "string // نقطة قوة أخرى."
-  ],
-  "issues": [
-    "string // مشكلة قابلة للتنفيذ (مثال: 'الحوار يبدو جافًا، حاول إضافة المزيد من المشاعر').",
-    "string // مشكلة أخرى."
-  ],
-  "overall_score": "float // المتوسط المحسوب للدرجات في 'scores'."
+  "creative_alternatives": {{
+    "sensory_version": "string",
+    "psychological_version": "string",
+    "action_oriented_version": "string"
+  }}
 }}
 """
 
-# --- قسم الاختبار المحدّث ---
-async def main_test():
-    import os
-    from dotenv import load_dotenv
+    async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        return await self.provide_comparative_critique(context)
 
-    load_dotenv()
-    if not os.getenv("GEMINI_API_KEY"):
-        print("❌ خطأ: متغير البيئة GEMINI_API_KEY غير موجود.")
-        return
-
-    critic_agent = LiteraryCriticAgent()
-    
-    # --- 1. اختبار نقد فكرة ---
-    print("\n--- 🧪 TEST 1: Critiquing a story idea ---")
-    bad_idea = {"premise": "رجل يكتشف سرا."}
-    critique_result = critic_agent.review_idea(bad_idea)
-    print(f"Critique for a weak idea: {critique_result}")
-    assert critique_result['overall_score'] < 8.0
-
-    good_idea = {"premise": "في عالم صحراوي، تكتشف منظمة سرية أن الماء ليس عنصراً طبيعياً بل هو دم كائن فضائي قديم، ويطاردون آخر شخص يعرف الحقيقة."}
-    critique_result = critic_agent.review_idea(good_idea)
-    print(f"Critique for a strong idea: {critique_result}")
-    assert critique_result['overall_score'] >= 8.0
-
-    # --- 2. اختبار نقد فصل كامل (باستخدام LLM) ---
-    print("\n--- 🧪 TEST 2: Critiquing a full chapter via LLM ---")
-    sample_chapter_content = {
-        "title": "الفصل 1: الرسالة الغامضة",
-        "chapter_content": "تحت سماء القاهرة الرمادية، وقف علي يراقب المارة. لم يكن يشعر ببرودة الهواء بقدر ما كان يشعر ببرودة روحه الفارغة. رائحة الشواء المنبعثة من مطعم قريب لم تعد تثير شهيته، بل ذكرته فقط بموائد الطعام الدافئة التي تركها خلفه. أمسك بالرسالة القديمة في جيبه، ملمسها الخشن كان بمثابة مرساة تربطه بعالم يكاد ينساه. كانت غربته صحراء لا تنتهي، وكانت هذه الرسالة بئر الماء الوحيد في أفقه.",
-        "emotional_focus": "الغربة"
-    }
-
-    try:
-        chapter_critique = await critic_agent.review_chapter(sample_chapter_content)
-        print("✅ LLM-based critique successful!")
-        print(json.dumps(chapter_critique, indent=2, ensure_ascii=False))
-        assert "overall_score" in chapter_critique
-        assert "issues" in chapter_critique
-    except Exception as e:
-        print(f"❌ LLM-based critique failed: {e}")
-
-if __name__ == "__main__":
-    # هذا الكود الآن يتطلب تعريف الفئة الأساسية BaseAgent بشكل صحيح
-    # سنفترض أن `agents/base_agent.py` موجود ويعمل
-    asyncio.run(main_test())
+# إنشاء مثيل وحيد
+literary_critic_agent = LiteraryCriticAgent()
