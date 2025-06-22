@@ -90,4 +90,115 @@ class CoreOrchestrator:
         return await agent.process_task(context)
 
 # ... (بقية الملف)
+# core/core_orchestrator.py (V6 - The Autonomous Core)
+import logging
+from typing import Dict, Any
 
+# ... (كل الاستيرادات السابقة) ...
+from ..orchestrators.athena_strategic_orchestrator import athena_orchestrator
+
+logger = logging.getLogger("CoreOrchestrator-V6")
+
+class CoreOrchestrator:
+    """
+    المنسق الأساسي المستقل (V6).
+    يعمل تحت التوجيه الاستراتيجي لـ "أثينا"، مما يسمح بسير عمل
+    ديناميكي ومستقل بالكامل.
+    """
+    def __init__(self):
+        # ... (نفس التهيئة وتسجيل الوكلاء) ...
+        self.agents["athena_orchestrator"] = athena_orchestrator
+        logger.info("✅ Autonomous CoreOrchestrator V6 Initialized.")
+
+    async def start_autonomous_workflow(self, project_goal: str, initial_context: Dict[str, Any], user_session: UserSession) -> str:
+        """
+        [جديد] بدء سير عمل مستقل وموجه بالهدف.
+        """
+        execution_id = f"exec_auto_{uuid.uuid4().hex[:10]}"
+        logger.info(f"Starting AUTONOMOUS workflow for goal: '{project_goal}'")
+
+        execution = {
+            "id": execution_id,
+            "user_id": user_session.user_id,
+            "project_goal": project_goal,
+            "status": WorkflowStatus.RUNNING.value,
+            "project_state": {"initial_context": initial_context}, # الحالة المتراكمة للمشروع
+            "task_history": [],
+            "created_at": datetime.now().isoformat(),
+        }
+        
+        self.running_workflows[execution_id] = execution
+        asyncio.create_task(self._execute_autonomous_workflow(execution_id))
+        return execution_id
+
+    async def _execute_autonomous_workflow(self, execution_id: str):
+        """
+        التنفيذ الفعلي لسير العمل المستقل.
+        الحلقة هنا لا تنتهي بانتهاء قائمة مهام، بل بتحقيق الهدف.
+        """
+        execution = self.running_workflows[execution_id]
+        last_task_output = {}
+
+        try:
+            for i in range(20): # حد أقصى لعدد الخطوات لمنع الحلقات اللانهائية
+                logger.info(f"--- Autonomous Cycle {i+1} for exec_id: {execution_id} ---")
+
+                # 1. "أثينا" تقرر الخطوة التالية
+                athena_context = {
+                    "project_goal": execution["project_goal"],
+                    "project_state": execution["project_state"],
+                    "last_task_output": last_task_output
+                }
+                decision_result = await self.agents["athena_orchestrator"].process_task(athena_context)
+                strategic_decision = decision_result.get("content", {}).get("strategic_decision")
+                if not strategic_decision:
+                    raise RuntimeError(f"Athena failed to provide a valid strategic decision. Last output: {decision_result}")
+
+                next_task_type = strategic_decision.get("next_task_type")
+                input_data = strategic_decision.get("input_data")
+                logger.info(f"Athena's strategic decision: Execute '{next_task_type}' - Justification: {strategic_decision.get('justification')}")
+
+                # التحقق من شرط التوقف
+                if TaskType(next_task_type) == TaskType.FINISH_WORKFLOW:
+                    logger.info("Athena decided to finish the workflow. Process complete.")
+                    break
+
+                # 2. المنسق ينفذ قرار "أثينا"
+                task_data_for_handler = {"task_type": next_task_type, "input_data": input_data}
+                context_for_handler = {**execution["project_state"], **input_data}
+                handler = self.task_handlers.get(TaskType(next_task_type))
+                
+                last_task_output = await handler(task_data_for_handler, context_for_handler)
+                
+                # 3. تحديث حالة المشروع بالمخرجات الجديدة
+                self._update_project_state(execution["project_state"], last_task_output)
+                execution["task_history"].append({
+                    "task": next_task_type,
+                    "output_summary": str(last_task_output)[:200] # ملخص للمخرجات
+                })
+
+            execution["status"] = WorkflowStatus.COMPLETED.value
+            logger.info(f"✅ Autonomous workflow '{execution_id}' completed successfully.")
+
+        except Exception as e:
+            execution["status"] = WorkflowStatus.FAILED.value
+            execution["error_message"] = str(e)
+            logger.error(f"❌ Autonomous workflow '{execution_id}' failed. Reason: {e}", exc_info=True)
+
+    def _update_project_state(self, current_state: Dict, task_output: Dict):
+        """يدمج مخرجات المهمة الأخيرة في الحالة العامة للمشروع."""
+        # هذا منطق دمج ذكي، يمكن تطويره ليكون أكثر تعقيدًا
+        for key, value in task_output.items():
+            if key in ["status", "summary"]: continue
+            if isinstance(value, dict) and "content" in value:
+                # استخلاص المحتوى الرئيسي
+                main_content = value["content"]
+                # تحديد مفتاح مناسب للحالة
+                state_key = key
+                if "critique" in key:
+                    state_key = "latest_critique"
+                elif "chapter" in key:
+                    state_key = "latest_chapter"
+                current_state[state_key] = main_content
+
+# ... بقية الملف والمنسق الأساسي
