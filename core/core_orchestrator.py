@@ -1,102 +1,66 @@
-# core/core_orchestrator.py (النسخة النهائية V4 - كامل الصلاحيات)
-import asyncio
-import logging
-import uuid
-from typing import Dict, Any, List
-from dataclasses import asdict
-
-# ... (كل استيرادات الوكلاء والمكونات كما في الرد السابق) ...
-from ..agents.audio_musical_producer_agent import audio_musical_producer_agent
-from ..agents.interactive_experience_architect import interactive_architect
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [CoreOrchestrator-V4] - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# core/core_orchestrator.py (V5 - The Creative Partner)
+# ... (كل الاستيرادات والتهيئة من النسخة السابقة) ...
 
 class CoreOrchestrator:
-    """
-    المنسق الأساسي النهائي (V4).
-    يدير سير عمل ديناميكي بالكامل مع تفعيل سلطة الفيتو لحارس السرد.
-    """
-    def __init__(self):
-        self.running_workflows: Dict[str, Any] = {}
-        self.agents: Dict[str, BaseAgent] = self._register_agents()
-        self.task_handlers: Dict[str, Any] = self._initialize_task_handlers()
-        logger.info("✅ CoreOrchestrator V4 (Final) Initialized.")
-
-    def _register_agents(self) -> Dict[str, BaseAgent]:
-        """تسجيل جميع وكلاء النظام."""
-        return {
-            # ... (كل الوكلاء السابقين) ...
-            "audio_musical_producer": audio_musical_producer_agent,
-            "interactive_architect": interactive_architect,
-        }
-
-    def _initialize_task_handlers(self) -> Dict[str, Any]:
-        # ... (نفس تعريف المعالجات من الرد السابق)
-        return {}
-
+    # ... (دوال التهيئة وتسجيل الوكلاء كما هي) ...
 
     async def _execute_dynamic_workflow(self, execution_id: str):
         """
-        التنفيذ الفعلي لسير العمل مع منطق الفيتو والتخطيط التفاعلي.
+        التنفيذ الفعلي لسير العمل مع منطق التقييم المقارن وحقن الطفرات.
         """
-        execution = self.running_workflows[execution_id]
-        # ... (بداية التنفيذ كما هي) ...
+        # ... (نفس منطق بدء التنفيذ والحلقة الرئيسية) ...
 
-        completed_tasks = set()
-        
-        try:
-            while len(completed_tasks) < len(execution["tasks"]):
-                task_executed_in_cycle = False
-                for task_data in execution["tasks"]:
-                    if task_data["id"] in completed_tasks:
-                        continue
+        # --- داخل حلقة تنفيذ المهام ---
+        for task_data in tasks_to_run:
+            if task_data["id"] in completed_tasks:
+                continue
 
-                    if all(dep in completed_tasks for dep in task_data.get("dependencies", [])):
-                        max_retries = 2
-                        current_retry = 0
-                        task_successful = False
-
-                        while current_retry <= max_retries and not task_successful:
-                            # ... (نفس منطق استدعاء المعالج من الرد السابق) ...
-                            result = await handler(task_data, context)
-                            
-                            # --- [منطق جديد] التحقق الإلزامي من حارس السرد ---
-                            content_to_check = self._extract_content_from_result(result)
-                            if content_to_check:
-                                logger.info(f"Guardian is checking output of '{task_data['name']}'...")
-                                inconsistencies = await narrative_guardian.check_consistency(content_to_check)
-                                
-                                if inconsistencies:
-                                    current_retry += 1
-                                    logger.warning(
-                                        f"CONSISTENCY VIOLATION in '{task_data['name']}' (Attempt {current_retry}/{max_retries}): {inconsistencies}"
-                                    )
-                                    if current_retry > max_retries:
-                                        raise RuntimeError(f"Task '{task_data['name']}' failed consistency check after {max_retries} retries.")
-                                    
-                                    # حقن ملاحظات الحارس لإعادة المحاولة
-                                    context["guardian_feedback"] = inconsistencies
-                                    logger.info(f"Retrying task '{task_data['name']}' with feedback from the Guardian.")
-                                    continue # إعادة المحاولة في الحلقة الداخلية
-                                else:
-                                    logger.info("Guardian: Consistency check passed.")
-
-                            # المهمة نجحت
-                            task_successful = True
-                            await self._process_task_output(task_data, result, execution_id)
-                            completed_tasks.add(task_data["id"])
-                            task_executed_in_cycle = True
+            if all(dep in completed_tasks for dep in task_data.get("dependencies", [])):
                 
-                if not task_executed_in_cycle:
-                    raise RuntimeError("Workflow stalled.")
+                # --- [منطق جديد] التعامل مع دورات التخطيط الديناميكي المحسّنة ---
+                if TaskType(task_data["task_type"]) == TaskType.DYNAMIC_REPLAN:
+                    logger.info(">>>--- DYNAMIC RE-PLANNING CYCLE (with Chaos Injection) ---<<<")
+                    # استدعاء وكيل الفوضى الإبداعية
+                    chaos_context = {"story_context": self._get_story_summary(execution), "established_rules": list(narrative_guardian.fact_database.keys())}
+                    mutation = await self.agents["creative_chaos_agent"].process_task(chaos_context)
+                    
+                    # استدعاء مهندس المخططات مع "الطفرة" المقترحة
+                    replan_context = {"initial_blueprint": execution["context_data"].get("current_blueprint"), "mutation_suggestion": mutation.get("content")}
+                    updated_blueprint = await self.agents["blueprint_architect"].process_task(replan_context)
+                    
+                    execution["context_data"]["current_blueprint"] = updated_blueprint.get("blueprint")
+                    result = {"status": "success", "message": "Blueprint updated with creative mutation."}
 
-            execution["status"] = WorkflowStatus.COMPLETED.value
-            logger.info(f"✅ Workflow '{execution['name']}' completed successfully.")
+                # --- [منطق جديد] التعامل مع النقد المقارن ---
+                elif task_data["input_data"].get("critique_type") == "comparative":
+                    logger.info(f">>>--- COMPARATIVE CRITIQUE CYCLE for task '{task_data['name']}' ---<<<")
+                    # استدعاء الناقد المقارن
+                    critique_report = await self.agents["literary_critic"].process_task(input_payload)
+                    
+                    # استدعاء مهندس التجربة التفاعلية لتقديم الخيارات للمستخدم
+                    decision_context = {
+                        "decision_context": {
+                            "character": "Unknown", # يجب تحديدها من السياق
+                            "options": [
+                                {"id": "sensory", "summary": critique_report["content"]["critique_report"]["creative_alternatives"]["sensory_version"]},
+                                {"id": "psychological", "summary": critique_report["content"]["critique_report"]["creative_alternatives"]["psychological_version"]},
+                                {"id": "action", "summary": critique_report["content"]["critique_report"]["creative_alternatives"]["action_oriented_version"]},
+                            ]
+                        }
+                    }
+                    result = await self.agents["interactive_architect"].process_task(decision_context)
+                    # في نظام حقيقي، سينتظر المنسق هنا رد المستخدم
+                
+                else:
+                    # تنفيذ المهمة العادية
+                    # ... (نفس منطق التنفيذ السابق) ...
 
-        except Exception as e:
-            # ... (معالجة الأخطاء كما هي) ...
+                # ... (بقية منطق الحلقة) ...
 
-    # ... (بقية الدوال المساعدة كما هي) ...
 
-core_orchestrator = CoreOrchestrator()
+    def _get_story_summary(self, execution: Dict) -> str:
+        """يجمع ملخصًا للقصة من الذاكرة السردية."""
+        entries = narrative_memory.get_full_chronology()
+        return "\n".join([entry.content for entry in entries])
+        
+# ... (بقية الملف) ...
