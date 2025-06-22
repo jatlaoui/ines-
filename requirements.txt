@@ -1,6 +1,11 @@
-google-generativeai
-python-dotenv
+fastapi
+uvicorn
 pydantic
-beautifulsoup4
 httpx
-cachetools
+beautifulsoup4
+newspaper3k
+llama-cpp-python
+pyngrok
+python-dotenv
+# أضف أي مكتبات أخرى نستخدمها مثل numpy
+numpy
