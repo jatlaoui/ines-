@@ -63,4 +63,31 @@ class CoreOrchestrator:
         entries = narrative_memory.get_full_chronology()
         return "\n".join([entry.content for entry in entries])
         
-# ... (بقية الملف) ...
+# ... (بقية الملف) ...# في core/core_orchestrator.py
+
+# ... (استيرادات أخرى) ...
+from ..agents.fusion_synthesizer_agent import fusion_synthesizer_agent
+
+class CoreOrchestrator:
+    def _register_agents(self) -> Dict[str, BaseAgent]:
+        # ... (تسجيل كل الوكلاء الآخرين) ...
+        agents = super()._register_agents()
+        agents["fusion_synthesizer"] = fusion_synthesizer_agent
+        return agents
+
+    def _initialize_task_handlers(self) -> Dict[TaskType, Any]:
+        handlers = super()._initialize_task_handlers()
+        # إضافة معالجات لمهام الاندماج
+        handlers[TaskType.FUSION_ANALYZE_COMPATIBILITY] = self._handle_fusion_task
+        handlers[TaskType.FUSION_SYNTHESIZE_NARRATIVE] = self._handle_fusion_task
+        return handlers
+
+    async def _handle_fusion_task(self, task_data: Dict, context: Dict) -> Dict:
+        """معالج عام لمهام الاندماج السردي."""
+        agent = self.agents["fusion_synthesizer"]
+        # تمرير نوع المهمة الفرعية إلى الوكيل
+        context["fusion_task_type"] = task_data["task_type"].value.replace("fusion_", "")
+        return await agent.process_task(context)
+
+# ... (بقية الملف)
+
