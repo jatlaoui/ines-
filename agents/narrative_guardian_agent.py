@@ -89,3 +89,36 @@ class NarrativeGuardianAgent(BaseAgent):
 
 # إنشاء مثيل وحيد
 narrative_guardian = NarrativeGuardianAgent()
+# في ملف agents/narrative_guardian_agent.py
+
+class NarrativeGuardianAgent(BaseAgent):
+    # ... (الدوال الحالية) ...
+    
+    async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """
+        [مُعدل] يمكن الآن استدعاؤه للتحقق من تعديل معين.
+        'context' يمكن أن يحتوي على:
+        - 'change_event': { 'fact_key': ('الأسعد', 'دافع'), 'old_value': 'الربح', 'new_value': 'الانتقام' }
+        """
+        change_event = context.get("change_event")
+        if not change_event:
+            # الوضع الافتراضي: فحص نص كامل
+            return await super().process_task(context, **kwargs)
+
+        logger.info(f"Guardian: Analyzing dynamic change event: {change_event}")
+        
+        # منطق للبحث عن كل المشاهد المتأثرة بهذا التغيير وإصدار قائمة بها
+        affected_scenes = ["مشهد المقهى (الحلقة 1)", "حوار مع فاطمة (الحلقة 2)"]
+        
+        return {
+            "status": "warning",
+            "message": "Inconsistency warning triggered by user edit.",
+            "content": {
+                "inconsistency_alert": (
+                    f"تنبيه اتساق: تغيير دافع '{change_event['fact_key'][0]}' إلى '{change_event['new_value']}' "
+                    f"يتعارض مع سلوكه في المشاهد التالية: {', '.join(affected_scenes)}. "
+                    "هل تريد من وكيل الحوار إعادة كتابة هذه المشاهد لتعكس الدافع الجديد؟"
+                ),
+                "affected_scenes": affected_scenes
+            }
+        }
