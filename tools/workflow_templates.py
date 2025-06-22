@@ -419,3 +419,55 @@ narrative_forecasting_v1 = WorkflowTemplate(
 )
 # ... تسجيل القالب الجديد
 self.templates[narrative_forecasting_v1.id] = narrative_forecasting_v1
+# في ملف tools/workflow_templates.py
+
+# ----------------------------------------------------------------------
+# 10. قالب المنتج الفني المستقل (يعالج المواضيع المجردة)
+# ----------------------------------------------------------------------
+autonomous_artistic_producer = WorkflowTemplate(
+    id="autonomous_artistic_producer_v1",
+    name="المنتج الفني المستقل",
+    description="يحول موضوعًا مجردًا إلى عمل فني كامل (أغنية) مع تحليل وتقمص عميق.",
+    category="advanced_creation",
+    tasks=[
+        # المرحلة 1: التحليل والبناء الحسي
+        WorkflowTask(id="task_1_soul_profile", name="تحليل روح الفنان", ...),
+        WorkflowTask(id="task_2_sectional_rhythm", name="التحليل الأدائي المقطعي", ...),
+        WorkflowTask(
+            id="task_3_build_scenario",
+            name="بناء السيناريو الحسي",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "scenario_builder_agent", "topic": "{initial_topic}"},
+            dependencies=["task_1_soul_profile"]
+        ),
+        # المرحلة 2: الإنتاج الإبداعي (لاحظ أن كل خطوة تعتمد على ما قبلها)
+        WorkflowTask(
+            id="task_4_raw_composition",
+            name="كتابة تيار الوعي الخام",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "content_generator_agent", "mode": "poetry"},
+            dependencies=["task_3_build_scenario"]
+        ),
+        WorkflowTask(
+            id="task_5_flow_engineering",
+            name="هندسة التدفق والقافية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lyrical_flow_master_agent"},
+            dependencies=["task_4_raw_composition"]
+        ),
+        WorkflowTask(
+            id="task_6_performance_direction",
+            name="إضافة توجيهات الأداء المقطعية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "vocal_performance_director_agent"},
+            dependencies=["task_2_sectional_rhythm", "task_5_flow_engineering"]
+        ),
+        # المرحلة 3: النقد النهائي
+        WorkflowTask(
+            id="task_7_final_critique",
+            name="المراجعة الجمالية والأدائية النهائية",
+            # ...
+        ),
+    ]
+)
+# ... تسجيل القالب
