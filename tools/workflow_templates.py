@@ -330,3 +330,48 @@ adaptive_recommendation_v1 = WorkflowTemplate(
 # ... تسجيل القوالب الجديدة
 self.templates[curriculum_build_v1.id] = curriculum_build_v1
 self.templates[adaptive_recommendation_v1.id] = adaptive_recommendation_v1
+# في tools/workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 8. قالب الاندماج السردي الفائق
+# ----------------------------------------------------------------------
+hyper_narrative_fusion_v1 = WorkflowTemplate(
+    id="hyper_narrative_fusion_v1",
+    name="الاندماج السردي الفائق",
+    description="يدمج بين عملين أو أكثر لإنتاج عمل هجين ومبتكر.",
+    category="experimental_writing",
+    tasks=[
+        WorkflowTask(
+            id="task_1_analyze",
+            name="تحليل التوافق بين المصادر",
+            task_type=TaskType.FUSION_ANALYZE_COMPATIBILITY,
+            # سيتم تمرير المصادر في سياق التنفيذ الأولي
+            input_data={"sources": "{initial_sources}"}
+        ),
+        WorkflowTask(
+            id="task_2_create_blueprint",
+            name="إنشاء مخطط الاندماج",
+            task_type=TaskType.BUILD_BLUEPRINT,
+            # سيتم استخدام مخرجات التحليل هنا
+            input_data={"agent_id": "blueprint_architect", "mode": "fusion"},
+            dependencies=["task_1_analyze"]
+        ),
+        WorkflowTask(
+            id="task_3_synthesize",
+            name="تخليق السرد الهجين",
+            task_type=TaskType.FUSION_SYNTHESIZE_NARRATIVE,
+            # سيتم استخدام مخرجات المهمتين السابقتين
+            dependencies=["task_1_analyze", "task_2_create_blueprint"]
+        ),
+        WorkflowTask(
+            id="task_4_arbitrate",
+            name="التحكيم في جودة الاندماج",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "fusion_arbitrator_agent"},
+            dependencies=["task_3_synthesize"]
+        ),
+    ]
+)
+
+# ... تسجيل القالب الجديد
+self.templates[hyper_narrative_fusion_v1.id] = hyper_narrative_fusion_v1
