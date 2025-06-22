@@ -224,3 +224,20 @@ class CoreOrchestrator:
             logger.info("Story Bible generated. Process complete.")
             break
         # ...
+# في core/core_orchestrator.py
+
+# ... (استيرادات أخرى) ...
+from ..agents.oracle_narrative_agent import oracle_narrative_agent
+
+class CoreOrchestrator:
+    def _register_agents(self) -> Dict[str, BaseAgent]:
+        agents = super()._register_agents()
+        agents["narrative_oracle"] = oracle_narrative_agent
+        return agents
+
+    def _initialize_task_handlers(self) -> Dict[TaskType, Any]:
+        handlers = super()._initialize_task_handlers()
+        handlers[TaskType.NARRATIVE_FORECAST] = self.agents["narrative_oracle"].process_task
+        return handlers
+
+# ... (بقية الملف)
