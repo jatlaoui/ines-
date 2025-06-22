@@ -202,3 +202,25 @@ class CoreOrchestrator:
                 current_state[state_key] = main_content
 
 # ... بقية الملف والمنسق الأساسي
+# في core/core_orchestrator.py
+
+# ... (استيرادات أخرى) ...
+from ..agents.lore_master_agent import lore_master_agent
+
+class CoreOrchestrator:
+    def _register_agents(self) -> Dict[str, BaseAgent]:
+        agents = super()._register_agents()
+        agents["lore_master"] = lore_master_agent
+        return agents
+
+    async def _execute_autonomous_workflow(self, execution_id: str):
+        # ... (داخل الحلقة الرئيسية) ...
+        # عند اتخاذ قرار بالإنهاء
+        if TaskType(next_task_type) == TaskType.FINISH_WORKFLOW:
+            logger.info("Workflow goal achieved. Generating final Story Bible...")
+            # قبل الإنهاء، يتم استدعاء LoreMaster
+            final_context = {"execution": execution}
+            await self.agents["lore_master"].process_task(final_context)
+            logger.info("Story Bible generated. Process complete.")
+            break
+        # ...
