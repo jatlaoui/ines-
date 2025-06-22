@@ -252,3 +252,81 @@ vernacular_soul_rap = WorkflowTemplate(
 )
 # تسجيل القالب
 self.templates[vernacular_soul_rap.id] = vernacular_soul_rapmotional_rap_composition.id] = emotional_rap_composition
+# في ملف workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 6. قالب بناء منهج تعليمي متكامل
+# ----------------------------------------------------------------------
+curriculum_build_v1 = WorkflowTemplate(
+    id="curriculum_build_v1",
+    name="بناء منهج تعليمي متكامل من PDF",
+    description="يأخذ كتابًا مدرسيًا (PDF) ويحوله إلى محتوى تعليمي تفاعلي.",
+    category="educational_content",
+    tasks=[
+        WorkflowTask(
+            id="task_1_ingest",
+            name="استيعاب وتحليل المنهج",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "ingestion_engine", "input_type": "PDF_FILE", "source": "{file_content_base64}"}
+        ),
+        WorkflowTask(
+            id="task_2_design_map",
+            name="تصميم خريطة المنهج",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "instructional_designer", "mode": "academic"},
+            dependencies=["task_1_ingest"]
+        ),
+        WorkflowTask(
+            id="task_3_critique_map",
+            name="نقد وتدقيق خريطة المنهج",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "educational_content_critic"},
+            dependencies=["task_2_design_map"]
+        ),
+        # هذه المهمة ستكون حلقة تكرارية في التنفيذ الفعلي
+        WorkflowTask(
+            id="task_4_generate_lesson_content",
+            name="توليد محتوى الدروس (ملخصات وتمارين)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            # سيتم استدعاء هذا الوكيل عدة مرات مع سياق مختلف لكل درس
+            input_data={"agent_id": "chapter_composer", "mode": "academic", "exercise_generator_agent_id": "exercises_generator"},
+            dependencies=["task_3_critique_map"]
+        ),
+        WorkflowTask(
+            id="task_5_build_knowledge_graph",
+            name="بناء الشبكة المعرفية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "advanced_context_engine"},
+            dependencies=["task_4_generate_lesson_content"]
+        ),
+        WorkflowTask(
+            id="task_6_design_learning_paths",
+            name="تصميم مسارات المراجعة",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "learning_path_architect", "path_types": ["quick_review", "deep_dive"]},
+            dependencies=["task_5_build_knowledge_graph"]
+        ),
+    ]
+)
+
+# ----------------------------------------------------------------------
+# 7. قالب التوصية التكيفية
+# ----------------------------------------------------------------------
+adaptive_recommendation_v1 = WorkflowTemplate(
+    id="adaptive_recommendation_v1",
+    name="توليد توصية تعلم تكيفية",
+    description="يحلل أداء الطالب ويقترح الخطوة التالية.",
+    category="adaptive_learning",
+    tasks=[
+        WorkflowTask(
+            id="task_1_adapt_path",
+            name="تحليل الأداء وتكييف المسار",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "interactive_curriculum_designer"}
+        )
+    ]
+)
+
+# ... تسجيل القوالب الجديدة
+self.templates[curriculum_build_v1.id] = curriculum_build_v1
+self.templates[adaptive_recommendation_v1.id] = adaptive_recommendation_v1
