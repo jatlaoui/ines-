@@ -471,3 +471,56 @@ autonomous_artistic_producer = WorkflowTemplate(
     ]
 )
 # ... تسجيل القالب
+# في ملف tools/workflow_templates.py
+
+# ----------------------------------------------------------------------
+# 11. قالب إنتاج حزمة المشروع الجاهز للتمويل
+# ----------------------------------------------------------------------
+generate_funding_package_v1 = WorkflowTemplate(
+    id="generate_funding_package_v1",
+    name="إنشاء حزمة المشروع الجاهز للتمويل",
+    description="ينتج مجموعة كاملة من المستندات الاحترافية لتقديم المشروع للمنتجين والجهات الداعمة.",
+    category="production",
+    tasks=[
+        # تفترض هذه المهمة أن السيناريو (raw_script) موجود بالفعل في سياق التنفيذ
+        WorkflowTask(
+            id="task_1_format_script",
+            name="تنسيق السيناريو بالصيغة الاحترافية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "screenplay_formatter"}
+        ),
+        WorkflowTask(
+            id="task_2_generate_prod_bible",
+            name="إنشاء ملف المشروع الشامل",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lore_master", "task_type": "generate_production_bible"}
+        ),
+        WorkflowTask(
+            id="task_3_generate_cultural_cert",
+            name="إنشاء شهادة الأصالة الثقافية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lore_master", "task_type": "generate_cultural_certificate"}
+        ),
+        WorkflowTask(
+            id="task_4_feasibility_report",
+            name="إنشاء تقرير الجدوى الإنتاجية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "production_analyst"},
+            dependencies=["task_1_format_script"] # يعتمد على السيناريو المنسق
+        ),
+        # المهمة النهائية هي تجميع كل هذه المخرجات في حزمة واحدة
+        WorkflowTask(
+            id="task_5_package_assembly",
+            name="تجميع حزمة التمويل النهائية",
+            task_type=TaskType.MERGE_DATA,
+            input_data={"output_name": "Funding_Ready_Package"},
+            dependencies=[
+                "task_1_format_script",
+                "task_2_generate_prod_bible",
+                "task_3_generate_cultural_cert",
+                "task_4_feasibility_report"
+            ]
+        ),
+    ]
+)
+# ... تسجيل القالب الجديد
