@@ -1,61 +1,79 @@
-# agents/social_conflict_mapper_agent.py
-"""
-SocialConflictMapperAgent (مخطط الصراعات الاجتماعية)
-وكيل متخصص في تصميم وتحليل الصراعات الاجتماعية في السرد.
-"""
+# agents/social_conflict_mapper_agent.py (V2 - Functional)
 import logging
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
-# from tools.social_conflict_mapper import SocialConflictMapper # الأداة المتخصصة
+from ..core.llm_service import llm_service
 
 logger = logging.getLogger("SocialConflictMapperAgent")
 
 class SocialConflictMapperAgent(BaseAgent):
     """
-    وكيل متخصص في تخطيط الصراعات الاجتماعية.
+    وكيل مخطط الصراعات الاجتماعية (V2).
+    يستخدم LLM لتحليل النصوص وتحديد المجموعات الاجتماعية،
+    نقاط التوتر بينها، وديناميكيات القوة.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
-            agent_id=agent_id,
+            agent_id=agent_id or "social_conflict_mapper",
             name="مخطط الصراعات الاجتماعية",
             description="يحلل ويبني الصراعات بين الطبقات والمجموعات الاجتماعية في القصة."
         )
-        # self.mapper_tool = SocialConflictMapper() # سيتم تفعيله لاحقًا
-        logger.info("SocialConflictMapperAgent initialized.")
+        logger.info("✅ Functional Social Conflict Mapper Agent (V2) Initialized.")
         
-    async def map_social_conflicts(self, context: Dict[str, Any], feedback: Optional[Any] = None) -> Dict[str, Any]:
+    async def map_social_conflicts(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         الوظيفة الرئيسية: إنشاء خريطة للصراعات الاجتماعية.
         """
-        setting = context.get("setting", "مدينة حديثة")
-        social_groups_desc = context.get("social_groups", ["الطبقة العاملة", "النخبة الثرية"])
+        text_content = context.get("text_content")
+        setting_description = context.get("setting_description", "مدينة عربية معاصرة")
         
-        if len(social_groups_desc) < 2:
-            raise ValueError("مطلوب مجموعتان على الأقل لتخطيط الصراع.")
+        if not text_content:
+            return {"status": "error", "message": "Text content is required to map conflicts."}
             
-        logger.info(f"Mapping social conflicts in '{setting}' between {', '.join(social_groups_desc)}...")
+        logger.info(f"Mapping social conflicts in setting: '{setting_description}'...")
         
-        # محاكاة لعملية التخطيط
-        conflict_map = {
-            "main_conflict": {
-                "type": "صراع طبقي",
-                "description": "صراع على الموارد والنفوذ بين الطبقة العاملة والنخبة الثرية.",
-                "intensity": "متوسط، قابل للتصعيد"
-            },
-            "involved_groups": social_groups_desc,
-            "tension_points": [
-                "فجوة الأجور",
-                "الوصول إلى الخدمات (صحة، تعليم)",
-                "التمثيل السياسي"
-            ],
-            "potential_escalation_triggers": [
-                "قرار اقتصادي غير عادل",
-                "حادثة عنف ضد أحد أفراد الطبقة العاملة"
-            ]
-        }
-        
+        prompt = self._build_mapping_prompt(text_content, setting_description)
+        conflict_map = await llm_service.generate_json_response(prompt, temperature=0.3)
+
+        if "error" in conflict_map:
+            return {"status": "error", "message": "LLM call for conflict mapping failed.", "details": conflict_map}
+
         return {
-            "content": conflict_map,
-            "summary": f"تم إنشاء خريطة للصراع الاجتماعي في '{setting}'."
+            "status": "success",
+            "content": {"conflict_map": conflict_map},
+            "summary": f"Social conflict map generated with {len(conflict_map.get('involved_groups', []))} groups."
         }
+        
+    def _build_mapping_prompt(self, text: str, setting: str) -> str:
+        return f"""
+مهمتك: أنت عالم اجتماع ومحلل سياسي، متخصص في بناء الديناميكيات الاجتماعية للسرد الروائي.
+
+**وصف العالم والسياق:**
+{setting}
+
+**النص للتحليل (يصف شخصيات وتفاعلات داخل هذا العالم):**
+---
+{text}
+---
+
+**التعليمات:**
+بناءً على النص والسياق، قم بإنشاء "خريطة صراع" اجتماعية. أرجع ردك **حصريًا** بتنسيق JSON.
+1.  **involved_groups:** حدد أبرز 2-3 مجموعات اجتماعية أو طبقات موجودة في النص (مثال: "الطبقة الأرستقراطية القديمة"، "العمال الكادحون"، "الشباب المثقف الطموح").
+2.  **main_conflict:** صف الصراع الرئيسي بين هذه المجموعات في جملة واحدة (مثال: "صراع على النفوذ والموارد بين النخبة التقليدية والتجار الجدد").
+3.  **tension_points:** اذكر 3 نقاط توتر محددة تظهر هذا الصراع (مثال: "فجوة الأجور"، "الوصول إلى التعليم"، "التحكم في الأراضي").
+4.  **power_dynamics:** صف بإيجاز ديناميكية القوة (من يملك السلطة ومن يسعى إليها).
+
+**خريطة الصراع (JSON):**
+"""
+
+    async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        return await self.map_social_conflicts(context)
+
+# إنشاء مثيل وحيد
+social_conflict_mapper_agent = SocialConflictMapperAgent()
+```**شرح الترقية:** مرة أخرى، بدلاً من الاعتماد على قائمة ثابتة من الطبقات الاجتماعية، يقوم الوكيل الآن بتمرير النص إلى الـ LLM ويطلب منه **استنتاج** المجموعات الاجتماعية والصراعات مباشرة من سياق القصة. هذا يجعله قادرًا على تحليل أي نوع من الصراعات (طبقي، ديني، عرقي، إلخ) بدلاً من أن يكون مقيدًا بما تم تعريفه مسبقًا.
+
+---
+### **الخلاصة**
+بهذه الترقية، قمنا بسد الفجوة التي حددتها بدقة. لقد حولنا ثلاثة من أهم الوكلاء المتخصصين من مجرد "وظائف وهمية" إلى **أدوات تحليلية حقيقية وقوية** تعتمد على قدرة نماذج اللغة الكبيرة على الاستدلال والتصنيف والتوليد ضمن أطر عمل محددة. نظام "إينيس" الآن أصبح أكثر فعالية بكثير وجاهزًا لإنتاج مخرجات ذات عمق نفسي ومنطقي واجتماعي حقيقي.
