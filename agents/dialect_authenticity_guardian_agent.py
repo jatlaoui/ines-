@@ -1,18 +1,18 @@
-# agents/dialect_authenticity_guardian_agent.py (وكيل جديد)
+# agents/dialect_authenticity_guardian_agent.py (V2 - Anti-Transliteration)
 import logging
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
 from ..core.llm_service import llm_service
-from ..engines.tunisian_culture_engine import tunisian_culture_engine # يعتمد على المحرك الثقافي
+from ..engines.tunisian_culture_engine import tunisian_culture_engine
 
 logger = logging.getLogger("DialectAuthenticityGuardianAgent")
 
 class DialectAuthenticityGuardianAgent(BaseAgent):
     """
-    وكيل "حارس الأصالة اللهجية".
-    متخصص في مراجعة النصوص والتأكد من أن الحوارات تتوافق مع
-    الخصائص اللغوية للشخصيات واللهجة المطلوبة.
+    حارس الأصالة اللهجية (V2).
+    متخصص في اكتشاف التراكيب الفصيحة والترجمات الصوتية غير الأصيلة
+    واقتراح بدائل عامية مناسبة.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
@@ -21,15 +21,10 @@ class DialectAuthenticityGuardianAgent(BaseAgent):
             description="يراجع الحوارات ويقترح تعديلات لزيادة الأصالة اللهجية."
         )
         self.culture_engine = tunisian_culture_engine
+        # [جديد] قائمة سوداء للترجمات الصوتية الشائعة التي يجب تجنبها
+        self.transliteration_blacklist = ["بيك", "بوس", "كول", "نايس", "أوكي"]
 
     async def review_and_correct(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        الوظيفة الرئيسية: يراجع النص ويقترح تعديلات لهجية.
-        'context' يجب أن يحتوي على:
-        - text_content: النص المراد مراجعته.
-        - dialect_id: معرف اللهجة المستهدفة (e.g., "tunisois", "sfaxien").
-        - character_profile: وصف للشخصية المتحدثة.
-        """
         text_content = context.get("text_content")
         dialect_id = context.get("dialect_id", "tunisois")
         character_profile = context.get("character_profile")
@@ -37,15 +32,17 @@ class DialectAuthenticityGuardianAgent(BaseAgent):
         if not text_content or not character_profile:
             return {"status": "error", "message": "Text content and character profile are required."}
 
-        logger.info(f"Guardian of Authenticity: Reviewing text for '{dialect_id}' dialect...")
+        logger.info(f"Guardian V2: Reviewing text for '{dialect_id}' dialect and transliteration issues...")
         
+        # [جديد] بناء prompt محسن
         prompt = self._build_review_prompt(text_content, dialect_id, character_profile)
         
-        # هذا النوع من المهام يستفيد من مخرجات JSON المنظمة
-        response = await llm_service.generate_json_response(prompt, temperature=0.2)
+        response = await llm_service.generate_json_response(prompt, temperature=0.1)
 
         if "error" in response:
             return {"status": "error", "message": "LLM call for dialect review failed.", "details": response}
+
+        # يمكنك أيضًا إضافة فحص يدوي بسيط باستخدام القائمة السوداء هنا كطبقة حماية إضافية
 
         return {
             "status": "success",
@@ -55,12 +52,10 @@ class DialectAuthenticityGuardianAgent(BaseAgent):
 
     def _build_review_prompt(self, text: str, dialect: str, profile: Dict) -> str:
         
-        dialect_sample = self.culture_engine.get_dialectal_sample(dialect)
-        
         return f"""
-مهمتك: أنت لغوي خبير ومتخصص في اللهجة التونسية بجميع تنوعاتها. مهمتك هي مراجعة الحوار التالي والتأكد من أصالته اللغوية.
+مهمتك: أنت لغوي تونسي دقيق للغاية. مهمتك هي مراجعة الحوار التالي من منظورين: 1) التراكيب الفصيحة جدًا، 2) الترجمات الصوتية المباشرة (Transliteration) من لغات أخرى.
 
-**اللهجة المستهدفة:** {dialect} (مثال على لكنتها: "{dialect_sample}")
+**اللهجة المستهدفة:** {dialect}
 **ملف الشخصية المتحدثة:** {profile.get('description', 'شخصية عامة')}
 
 **الحوار للمراجعة:**
@@ -70,16 +65,20 @@ class DialectAuthenticityGuardianAgent(BaseAgent):
 
 **التعليمات:**
 1.  اقرأ الحوار بعناية.
-2.  حدد أي جمل أو تراكيب تبدو "فصيحة جدًا" أو "مترجمة" ولا تتناسب مع شخصية المتحدث أو اللهجة اليومية.
-3.  اقترح تعديلاً لكل جملة محددة، بحيث يحافظ التعديل على المعنى الأصلي الذكي ولكنه يستخدم تركيبة عامية أكثر أصالة وطبيعية.
-4.  إذا كان الحوار أصيلاً بالفعل، أرجع قائمة فارغة.
+2.  **حدد أي جمل تبدو فصيحة بشكل غير طبيعي** لشخصية المتحدث.
+3.  **حدد أي كلمات تبدو كترجمة صوتية مباشرة** من لغات أخرى (أمثلة شائعة لتجنبها: {', '.join(self.transliteration_blacklist)}).
+4.  لكل تحديد، اقترح تعديلاً باللهجة التونسية الأصيلة يحافظ على المعنى.
 
-أرجع ردك **حصريًا** بتنسيق JSON. يجب أن يحتوي الرد على مفتاح واحد هو `corrections`، وقيمته قائمة (list) من الكائنات (objects).
-كل كائن يجب أن يتبع الهيكل التالي:
+أرجع ردك **حصريًا** بتنسيق JSON يحتوي على قائمة `corrections`. إذا كان النص أصيلاً، أرجع قائمة فارغة.
 {{
-  "original_sentence": "string // الجملة التي تحتاج إلى تعديل.",
-  "suggested_correction": "string // الجملة البديلة والأكثر أصالة.",
-  "justification": "string // شرح موجز لماذا البديل أفضل (مثال: 'استخدام مصطلح عامي أكثر شيوعًا')."
+  "corrections": [
+    {{
+      "original_phrase": "string // الكلمة أو الجملة التي تحتاج إلى تعديل.",
+      "correction_type": "string // نوع الخطأ ('فصيح جدًا' أو 'ترجمة صوتية').",
+      "suggested_correction": "string // الجملة البديلة والأكثر أصالة.",
+      "justification": "string // لماذا البديل أفضل."
+    }}
+  ]
 }}
 """
 
