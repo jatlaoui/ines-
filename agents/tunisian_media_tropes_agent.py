@@ -1,4 +1,4 @@
-# agents/tunisian_media_tropes_agent.py (وكيل جديد)
+# agents/tunisian_media_tropes_agent.py
 import logging
 from typing import Dict, Any, Optional
 
@@ -10,48 +10,57 @@ logger = logging.getLogger("TunisianMediaTropesAgent")
 class TunisianMediaTropesAgent(BaseAgent):
     """
     وكيل متخصص في تحليل الكليشيهات (Tropes) في الدراما والسينما التونسية.
-    يمكنه المساعدة في محاكاة أو كسر هذه الأنماط.
+    يمكنه تحليل النصوص للكشف عن الأنماط السائدة أو اقتراح طرق مبتكرة لكسرها.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
             agent_id=agent_id or "tunisian_media_tropes_analyzer",
             name="محلل الكليشيهات الإعلامية التونسية",
-            description="يحلل ويحدد الأنماط السردية الشائعة في الإعلام التونسي."
+            description="يحلل ويحدد الأنماط السردية الشائعة في الإعلام التونسي لتعزيز الابتكار."
         )
 
-    async def analyze_or_suggest(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze_and_suggest(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        الوظيفة الرئيسية: إما يحلل نصًا للكشف عن الكليشيهات، أو يقترح كليشيهات لدمجها/كسرها.
-        'context' يجب أن يحتوي على:
-        - mode: 'analyze' or 'suggest'.
-        - text_content: (في وضع التحليل) النص المراد تحليله.
-        - story_idea: (في وضع الاقتراح) فكرة القصة.
+        الوظيفة الرئيسية: يحلل نصًا للكشف عن الكليشيهات ويقترح طرقًا لكسرها.
         """
-        mode = context.get("mode", "analyze")
+        text_content = context.get("text_content")
+        if not text_content:
+            return {"status": "error", "message": "Text content is required for trope analysis."}
+
+        logger.info("Analyzing text for common Tunisian media tropes...")
         
-        prompt = self._build_prompt(context)
-        response = await llm_service.generate_json_response(prompt, temperature=0.7)
+        prompt = self._build_analysis_prompt(text_content)
+        response = await llm_service.generate_json_response(prompt, temperature=0.5)
+
+        if "error" in response:
+            return {"status": "error", "message": "LLM call for trope analysis failed.", "details": response}
 
         return {"status": "success", "content": {"tropes_report": response}}
 
-    def _build_prompt(self, context: Dict) -> str:
-        if context.get("mode") == "suggest":
-            idea = context.get("story_idea", "")
-            return f"""
-مهمتك: أنت ناقد وسيناريست تونسي خبير، على دراية تامة بالمسلسلات والأفلام التونسية.
-لدينا فكرة قصة جديدة: "{idea}"
-**المطلوب:** اقترح 3 كليشيهات (Tropes) درامية تونسية شائعة يمكن دمجها في هذه القصة لجعلها أكثر قربًا من الجمهور التونسي. ثم، اقترح "كسرًا" مبتكرًا لأحد هذه الكليشيهات لجعل القصة غير متوقعة. أرجع ردك بصيغة JSON.
-"""
-        else: # analyze mode
-            text = context.get("text_content", "")
-            return f"""
-مهمتك: أنت ناقد وسيناريست تونسي خبير. حلل النص التالي وحدد أي كليشيهات (Tropes) درامية تونسية شائعة مستخدمة فيه.
-النص: "{text[:4000]}"
-أرجع ردك بصيغة JSON، مع تحديد الكليشيه ونقده.
+    def _build_analysis_prompt(self, text: str) -> str:
+        return f"""
+مهمتك: أنت ناقد وسيناريست تونسي خبير، لديك ذاكرة موسوعية بالدراما التلفزيونية والأفلام التونسية.
+مهمتك هي قراءة المشهد التالي، تحديد أي كليشيهات أو أنماط سردية شائعة فيه، ثم اقتراح "كسر" مبتكر لهذه الكليشيهات لجعل المشهد أكثر أصالة وعمقًا.
+
+**المشهد للمراجعة:**
+---
+{text}
+---
+
+**التعليمات:**
+أرجع ردك **حصريًا** بتنسيق JSON.
+1.  **identified_trope:**
+    - `name`: اسم الكليشيه المحدد (مثال: "صراع الأجيال حول العمل"، "شخصية الأب المتسلط").
+    - `critique`: نقد موجز يشرح لماذا هذا النمط مستهلك في الدراما التونسية.
+2.  **subversion_suggestion:**
+    - `idea`: فكرة جريئة ومبتكرة لكسر هذا الكليشيه (مثال: "بدلاً من أن يكون الابن كسولاً، هو يعمل في مشروع رقمي سري لا يفهمه الأب").
+    - `impact`: اشرح كيف سيغير هذا الاقتراح ديناميكية المشهد والصراع.
+
+**تقرير تحليل الكليشيهات (JSON):**
 """
 
     async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        return await self.analyze_or_suggest(context)
+        return await self.analyze_and_suggest(context)
 
 # إنشاء مثيل وحيد
 tunisian_media_tropes_agent = TunisianMediaTropesAgent()
