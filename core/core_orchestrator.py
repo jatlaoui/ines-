@@ -71,3 +71,30 @@ class CoreOrchestrator:
             # ... (معالجة الأخطاء) ...
             
     # ... (بقية الدوال المساعدة)
+# في core/core_orchestrator.py
+
+class CoreOrchestrator:
+    # ...
+    async def _execute_dynamic_workflow(self, execution_id: str):
+        # ...
+        # داخل حلقة تنفيذ المهام
+        
+        if task_data.get("is_loop"):
+            # [منطق جديد] التعامل مع المهام التكرارية
+            loop_data_path = task_data.get("loop_over")
+            # استخلاص قائمة العناصر للتكرار عليها من مخرجات مهمة سابقة
+            items_to_loop = self._get_data_from_path(execution["task_outputs"], loop_data_path)
+            
+            sub_tasks_results = []
+            for item in items_to_loop:
+                # لكل عنصر، قم بتنفيذ المهمة مع تمرير العنصر كسياق
+                item_context = {**context, "current_item": item}
+                sub_task_result = await handler(task_data, item_context)
+                sub_tasks_results.append(sub_task_result)
+            
+            result = {"status": "success", "content": {"loop_results": sub_tasks_results}}
+        else:
+            # تنفيذ المهمة العادية
+            result = await handler(task_data, context)
+            
+        # ...
