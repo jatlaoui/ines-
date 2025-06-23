@@ -524,3 +524,55 @@ generate_funding_package_v1 = WorkflowTemplate(
     ]
 )
 # ... تسجيل القالب الجديد
+# في ملف tools/workflow_templates.py
+
+# ----------------------------------------------------------------------
+# تحديث قالب كتابة المسرحية ليشمل النقد والأسلوب
+# ----------------------------------------------------------------------
+interactive_playwriting_v2 = WorkflowTemplate(
+    id="interactive_playwriting_v2",
+    name="كتابة مشهد مسرحي (مع نقد وأسلوب فني)",
+    description="سير عمل متقدم يكتب مسودة أولية، ثم ينقدها للكشف عن الكليشيهات، ثم يعيد صياغتها بأسلوب فني محدد.",
+    category="playwriting",
+    tasks=[
+        # ... (نفس مهام الإعداد الأولية: بناء العالم، الملفات النفسية، إلخ)
+        WorkflowTask(
+            id="task_1_scene_setup", ...
+        ),
+        # الخطوة 1: كتابة المسودة الأولى
+        WorkflowTask(
+            id="task_2_draft_writing",
+            name="كتابة المسودة الأولى للمشهد",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "playwright_agent"},
+            dependencies=["task_1_scene_setup"]
+        ),
+        # [جديد] الخطوة 2: تحليل ونقد الكليشيهات
+        WorkflowTask(
+            id="task_3_trope_analysis",
+            name="تحليل الكليشيهات الدرامية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "tunisian_media_tropes_analyzer"},
+            dependencies=["task_2_draft_writing"]
+        ),
+        # [جديد] الخطوة 3: الصياغة الفنية النهائية
+        WorkflowTask(
+            id="task_4_artistic_refinement",
+            name="إعادة الصياغة بأسلوب فني (الدوعاجي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "ali_douagi_dialogue_agent"},
+            # تعتمد على المسودة الأولى واقتراحات كسر الكليشيه
+            dependencies=["task_2_draft_writing", "task_3_trope_analysis"]
+        ),
+        # الخطوة 4: التفاعل مع المستخدم
+        WorkflowTask(
+            id="task_5_interactive_prompt",
+            name="تقديم الخيارات للمستخدم",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "interactive_experience_architect"},
+            dependencies=["task_4_artistic_refinement"]
+        ),
+    ]
+)
+# ... تسجيل القالب الجديد
+self.templates[interactive_playwriting_v2.id] = interactive_playwriting_v2
