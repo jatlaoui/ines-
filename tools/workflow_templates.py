@@ -576,3 +576,54 @@ interactive_playwriting_v2 = WorkflowTemplate(
 )
 # ... تسجيل القالب الجديد
 self.templates[interactive_playwriting_v2.id] = interactive_playwriting_v2
+# في ملف tools/workflow_templates.py
+
+# ----------------------------------------------------------------------
+# تحديث قالب كتابة المسرحية ليعكس "المراجعة المزدوجة"
+# ----------------------------------------------------------------------
+critical_playwriting_v2 = WorkflowTemplate(
+    id="critical_playwriting_v2",
+    name="كتابة مشهد مسرحي نقدي (مع مراجعة مزدوجة)",
+    description="سير عمل يكتب مسودة بأسلوب فني، ثم يراجعها لضمان الأصالة اللهجية.",
+    category="playwriting_advanced",
+    tasks=[
+        # --- الخطوة 1: الإعداد وبناء العالم (كما كانت) ---
+        WorkflowTask(
+            id="task_1_scene_setup",
+            name="إعداد المشهد (شخصيات، صراع، مكان)",
+            ...
+        ),
+        
+        # --- الخطوة 2: الكتابة الأسلوبية (المسودة الأولى) ---
+        WorkflowTask(
+            id="task_2_artistic_draft",
+            name="كتابة المسودة الأولى بأسلوب فني (الدوعاجي)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "ali_douagi_dialogue_agent"},
+            dependencies=["task_1_scene_setup"]
+        ),
+
+        # --- [جديد] الخطوة 3: التدقيق اللهجي الإلزامي ---
+        WorkflowTask(
+            id="task_3_dialect_review",
+            name="مراجعة وتصحيح الأصالة اللهجية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={
+                "agent_id": "dialect_authenticity_guardian",
+                # سيتم تمرير النص من المهمة السابقة واللهجة من الإعداد
+            },
+            dependencies=["task_2_artistic_draft"]
+        ),
+
+        # --- [جديد] الخطوة 4: الدمج والصياغة النهائية ---
+        WorkflowTask(
+            id="task_4_final_drafting",
+            name="دمج التصحيحات والصياغة النهائية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "final_draft_agent"}, # وكيل بسيط مهمته الدمج
+            dependencies=["task_2_artistic_draft", "task_3_dialect_review"]
+        ),
+    ]
+)
+# ... تسجيل القالب الجديد
+self.templates[critical_playwriting_v2.id] = critical_playwriting_v2
