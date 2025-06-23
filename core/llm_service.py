@@ -1,76 +1,56 @@
-# core/llm_service.py
-
-import os
-import json
+# core/llm_service.py (Simplified for Gemini Free Tier)
 import logging
+import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from typing import Dict, Any, Optional
 
-# --- إعدادات أساسية ---
-load_dotenv() # لتحميل المتغيرات من ملف .env
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(name)s] - %(levelname)s - %(message)s')
-logger = logging.getLogger("LLM_Service")
+logger = logging.getLogger("LLMService")
 
 class LLMService:
     """
-    خدمة مركزية للتفاعل مع نماذج اللغة الكبيرة (Gemini API).
+    خدمة موحدة للتفاعل مع Gemini API (مصممة للمرحلة الأولى).
     """
-    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-pro-latest"):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("مفتاح Gemini API غير موجود. يرجى إضافته في ملف .env باسم GEMINI_API_KEY")
-
-        genai.configure(api_key=self.api_key)
-        
-        self.model = genai.GenerativeModel(model_name)
-        logger.info(f"✅ LLM Service initialized with model: {model_name}")
-
-    async def generate_json_response(self, prompt: str, temperature: float = 0.5) -> Dict[str, Any]:
-        """
-        يستدعي الـ LLM ويتوقع استجابة بتنسيق JSON.
-        """
-        logger.info(f"▶️ Sending JSON request to LLM (temp={temperature}). Prompt starts with: '{prompt[:200].replace('\n', ' ')}...'")
-        
-        try:
-            generation_config = genai.types.GenerationConfig(
-                temperature=temperature,
-                response_mime_type="application/json"
-            )
+    def __init__(self):
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in .env file.")
             
-            response = await self.model.generate_content_async(
-                prompt, 
-                generation_config=generation_config
-            )
-            
-            if not response.parts:
-                logger.error("❌ LLM returned an empty response.")
-                return {"error": "LLM returned an empty response."}
-
-            json_data = json.loads(response.text)
-            logger.info(f"✅ Received valid JSON response from LLM.")
-            return json_data
-
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Failed to decode JSON from LLM response. Error: {e}")
-            logger.debug(f"Raw response text: {getattr(response, 'text', 'N/A')}")
-            return {"error": "JSONDecodeError", "details": str(e), "raw_response": getattr(response, 'text', 'N/A')}
-        except Exception as e:
-            logger.error(f"❌ An unexpected error occurred while calling the LLM: {e}")
-            return {"error": "LLM_API_Call_Failed", "details": str(e)}
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash') # استخدام نموذج سريع وفعال
+        logger.info("✅ LLM Service initialized with Gemini 1.5 Flash (Free Tier Compliant).")
 
     async def generate_text_response(self, prompt: str, temperature: float = 0.7) -> str:
-        """
-        يستدعي الـ LLM ويتوقع استجابة نصية عادية.
-        """
-        logger.info(f"▶️ Sending Text request to LLM (temp={temperature}). Prompt starts with: '{prompt[:200].replace('\n', ' ')}...'")
+        """يولد نصًا من Gemini."""
         try:
-            response = await self.model.generate_content_async(prompt, temperature=temperature)
-            logger.info(f"✅ Received text response from LLM.")
+            response = await self.model.generate_content_async(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=temperature)
+            )
             return response.text
         except Exception as e:
-            logger.error(f"❌ An unexpected error occurred while calling the LLM: {e}")
-            return f"Error: {e}"
+            logger.error(f"Error during Gemini API call: {e}")
+            return f"Error: LLM call failed. Details: {e}"
 
-# --- إنشاء مثيل وحيد يمكن استيراده في أي مكان في المشروع ---
+    async def generate_json_response(self, prompt: str, temperature: float = 0.2) -> Dict:
+        """يولد ردًا بصيغة JSON من Gemini."""
+        # إضافة تعليمات للنموذج لضمان إخراج JSON
+        json_prompt = f"{prompt}\n\nتنبيه: يجب أن يكون الرد بصيغة JSON صالحة فقط، بدون أي نص إضافي قبله أو بعده."
+        try:
+            response_text = await self.generate_text_response(json_prompt, temperature)
+            # تنظيف الرد لاستخلاص JSON
+            import json
+            # البحث عن بداية ونهاية JSON في الرد
+            start = response_text.find('{')
+            end = response_text.rfind('}') + 1
+            if start != -1 and end != -1:
+                json_str = response_text[start:end]
+                return json.loads(json_str)
+            else:
+                raise ValueError("No valid JSON object found in the response.")
+        except Exception as e:
+            logger.error(f"Error parsing JSON from Gemini response: {e}")
+            return {"error": "Failed to parse JSON response.", "details": str(e)}
+
+# إنشاء مثيل وحيد
 llm_service = LLMService()
