@@ -1,73 +1,73 @@
-# core/core_orchestrator.py (V7 - Hybrid Supervisor-Apprentice)
+# core/core_orchestrator.py (V8 - MCP Enabled)
 import logging
 from typing import Dict, Any
 
 # ... (كل الاستيرادات السابقة) ...
-from ..agents.apprentice_local_agent import apprentice_local_agent
-from ..core.llm_service import llm_service # المشرف (Gemini)
-from ..core.local_llm_service import local_llm_service # المتدرب (Jan)
+from ..agents.context_distiller_agent import context_distiller_agent
 
-logger = logging.getLogger("CoreOrchestrator-V7")
+logger = logging.getLogger("CoreOrchestrator-V8")
 
 class CoreOrchestrator:
     """
-    المنسق الأساسي الهجين (V7).
-    ينفذ بروتوكول CCTD-P لإدارة العلاقة بين المشرف (LLM قوي) والمتدرب (LLM محلي).
+    المنسق الأساسي (V8).
+    ينفذ بروتوكول ضغط السياق وتفويض المهام (MCP) لتحقيق أقصى
+    قدر من الكفاءة والجودة.
     """
     def __init__(self):
-        # ... (تسجيل الوكلاء، بما في ذلك apprentice_local_agent) ...
-        self.agents = {"apprentice": apprentice_local_agent} # كمثال
-        logger.info("✅ Hybrid Supervisor-Apprentice Orchestrator (V7) Initialized.")
+        # ... (تسجيل الوكلاء، بما في ذلك context_distiller_agent) ...
+        self.agents = {"context_distiller": context_distiller_agent} # كمثال
+        logger.info("✅ MCP-Enabled CoreOrchestrator (V8) Initialized.")
 
-    async def execute_hybrid_creative_task(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    # ... (دالة start_autonomous_workflow كما هي) ...
+
+    async def _execute_autonomous_workflow(self, execution_id: str):
         """
-        [جديد] ينفذ مهمة إبداعية باستخدام بنية المشرف-المتدرب.
-        'context' يجب أن يحتوي على:
-        - full_project_state: الحالة الكاملة للمشروع.
-        - task_description: وصف المهمة الإبداعية (e.g., "كتابة الفصل الخامس").
+        التنفيذ الفعلي لسير العمل المستقل باستخدام بروتوكول MCP.
         """
-        full_project_state = context.get("full_project_state")
-        task_description = context.get("task_description")
-        logger.info(f"--- Starting Hybrid Task: {task_description} ---")
+        execution = self.running_workflows[execution_id]
+        project_state = {"initial_context": execution["context_data"]} # كائن الحالة
+        last_task_output = {}
 
-        # --- تفعيل بروتوكول CCTD-P ---
+        try:
+            for i in range(20): # الحد الأقصى للخطوات
+                logger.info(f"--- MCP-Enabled Cycle {i+1} for exec_id: {execution_id} ---")
 
-        # الخطوة 1: المتدرب يحضر موجز المهمة
-        logger.info("Step 1: Apprentice is preparing the mission brief...")
-        briefing_context = {
-            "full_project_state": full_project_state,
-            "next_task_description": task_description,
-            "apprentice_task_type": "prepare_brief"
-        }
-        brief_result = await self.agents["apprentice"].process_task(briefing_context)
-        if brief_result["status"] == "error": return brief_result
-        mission_brief = brief_result["content"]["mission_brief"]
+                # 1. "أثينا" تقرر الخطوة التالية (الـ "ماذا")
+                athena_context = {"project_state": project_state, "last_task_output": last_task_output}
+                decision_result = await self.agents["athena_orchestrator"].process_task(athena_context)
+                strategic_decision = decision_result.get("content", {}).get("strategic_decision")
+                
+                next_task_type = strategic_decision.get("next_task_type")
+                target_agent_id = strategic_decision.get("input_data", {}).get("agent_id")
+                task_description = strategic_decision.get("justification")
+                
+                # ... (منطق التحقق من الإنهاء) ...
 
-        # الخطوة 2: استدعاء المشرف (Gemini) مع السياق المضغوط
-        logger.info("Step 2: Supervisor (Gemini) is performing the core creative task...")
-        supervisor_prompt = f"""
-بناءً على موجز المهمة التالي، اكتب المشهد الإبداعي المحوري المطلوب بأسلوب أدبي رفيع.
----
-{mission_brief}
----
-المشهد المحوري:
-"""
-        # استخدام خدمة الـ LLM القوية
-        core_scene = await llm_service.generate_text_response(supervisor_prompt, temperature=0.8)
-        logger.info("Supervisor has completed the core scene.")
+                # 2. [جديد] "مُحضِّر السياق" يحضر المهمة (الـ "كيف")
+                logger.info(f"MCP Step 1: Distilling context for agent '{target_agent_id}'...")
+                distillation_context = {
+                    "full_project_state": project_state,
+                    "next_task_description": task_description,
+                    "target_agent_id": target_agent_id
+                }
+                distill_result = await self.agents["context_distiller"].process_task(distillation_context)
+                if distill_result["status"] == "error": raise RuntimeError("Context distillation failed.")
+                distilled_context = distill_result["content"]["distilled_context"]
+                
+                # 3. المنسق ينفذ المهمة مع السياق المضغوط
+                logger.info(f"MCP Step 2: Executing task '{next_task_type}' with distilled context...")
+                target_agent = self.agents.get(target_agent_id)
+                
+                # تمرير السياق المضغوط فقط إلى الوكيل المستهدف
+                last_task_output = await target_agent.process_task(distilled_context)
+                
+                # 4. تحديث حالة المشروع الكاملة بالنتائج
+                self._update_project_state(project_state, last_task_output, next_task_type)
+                execution["task_history"].append({"task": next_task_type, "summary": str(last_task_output)[:200]})
 
-        # الخطوة 3: المتدرب يقوم بتوسيع المشهد وتفصيله
-        logger.info("Step 3: Apprentice is expanding and detailing the scene...")
-        expansion_context = {
-            "core_scene_from_supervisor": core_scene,
-            "full_project_state": full_project_state,
-            "apprentice_task_type": "expand_scene"
-        }
-        expansion_result = await self.agents["apprentice"].process_task(expansion_context)
-        if expansion_result["status"] == "error": return expansion_result
-        full_chapter = expansion_result["content"]["full_chapter"]
-        
-        logger.info("--- Hybrid Task Completed Successfully ---")
-        return {"status": "success", "content": {"final_chapter": full_chapter}}
+            # ... (نهاية سير العمل) ...
 
-# ... (بقية الملف)
+        except Exception as e:
+            # ... (معالجة الأخطاء) ...
+            
+    # ... (بقية الدوال المساعدة)
