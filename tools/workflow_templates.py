@@ -627,3 +627,128 @@ critical_playwriting_v2 = WorkflowTemplate(
 )
 # ... تسجيل القالب الجديد
 self.templates[critical_playwriting_v2.id] = critical_playwriting_v2
+# ... (كل القوالب السابقة التي قمنا بإنشائها) ...
+
+class AdvancedWorkflowTemplates:
+    def __init__(self):
+        self.templates: Dict[str, WorkflowTemplate] = {}
+        # ... (استدعاء دوال إنشاء القوالب الأخرى) ...
+        self._create_professional_playwriting_template()
+
+    # ... (دوال إنشاء القوالب الأخرى) ...
+
+    def _create_professional_playwriting_template(self):
+        """
+        [جديد] ينشئ قالب سير العمل الاحترافي لكتابة المسرحيات،
+        بناءً على المنهجية الأكاديمية للكتابة الدرامية.
+        """
+        professional_playwriting_v1 = WorkflowTemplate(
+            id="professional_playwriting_v1",
+            name="إنشاء مسرحية احترافية (منهجية كاملة)",
+            description="سير عمل متكامل يتبع الخطوات الأكاديمية لكتابة نص مسرحي، من الفكرة إلى المسودة الأولى.",
+            category="playwriting_professional",
+            tasks=[
+                # --- المرحلة الأولى: التأسيس الفكري ---
+                WorkflowTask(
+                    id="task_1_generate_core_idea",
+                    name="المرحلة 1: صياغة الفكرة الأساسية",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "idea_generator",
+                        "prompt_context": {
+                            "request": "صغ فكرة مسرحية من سطر واحد حول موضوع '{initial_topic}'. يجب أن تكون الفكرة صراعًا دراميًا واضحًا.",
+                            "examples": ["الطموح غير المشروع يؤدي للدمار.", "الغيرة المفرطة تدمر صاحبها."]
+                        }
+                    },
+                    priority=TaskPriority.HIGH
+                ),
+                WorkflowTask(
+                    id="task_2_develop_synopsis",
+                    name="المرحلة 1: تطوير الملخص العام",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "blueprint_architect", # يمكنه القيام بهذه المهمة
+                        "prompt_context": {
+                            "request": "طور هذه الفكرة '{core_idea}' إلى ملخص من فقرة واحدة يصف البنية الدرامية (بداية، وسط، نهاية)."
+                        }
+                    },
+                    dependencies=["task_1_generate_core_idea"],
+                    priority=TaskPriority.HIGH
+                ),
+
+                # --- المرحلة الثانية: خلق الشخصيات ---
+                WorkflowTask(
+                    id="task_3_design_characters",
+                    name="المرحلة 2: تصميم الشخصيات الرئيسية",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "psychological_profiler",
+                        "prompt_context": {
+                            "request": "بناءً على الملخص التالي، اقترح 3 شخصيات رئيسية. لكل شخصية، حدد أبعادها الثلاثة (المادي، الاجتماعي، النفسي) بالتفصيل.",
+                            "synopsis": "{{task_2_develop_synopsis.output.content.synopsis}}"
+                        }
+                    },
+                    dependencies=["task_2_develop_synopsis"],
+                    priority=TaskPriority.HIGH
+                ),
+
+                # --- المرحلة الثالثة: بناء الحبكة الدرامية ---
+                WorkflowTask(
+                    id="task_4_design_dramatic_structure",
+                    name="المرحلة 3: تصميم البناء الدرامي الكامل",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "dramaturg_agent",
+                        "prompt_context": {
+                            "request": "صمم هيكل الحبكة الكامل للمسرحية بناءً على الملخص والشخصيات، محددًا كل مرحلة: 1. البداية (المعلومات)، 2. نقطة انطلاق الحدث، 3. الوسط (الصراع، الأزمة، التعقيد، الذروة)، 4. الحل، 5. النهاية المقترحة (مفتوحة/مغلقة/دائرية)."
+                        }
+                    },
+                    dependencies=["task_2_develop_synopsis", "task_3_design_characters"],
+                    priority=TaskPriority.URGENT
+                ),
+                
+                # --- المرحلة الرابعة: كتابة النص المسرحي ---
+                # هذه المهمة ستكون حلقة تكرارية يديرها المنسق، لكل مشهد في المخطط
+                WorkflowTask(
+                    id="task_5_write_scenes",
+                    name="المرحلة 4: كتابة مشاهد المسرحية",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "playwright_agent",
+                        "is_loop": True, # إشارة للمنسق بأن هذه مهمة تكرارية
+                        "loop_over": "{{task_4_design_dramatic_structure.output.content.scenes}}"
+                    },
+                    dependencies=["task_4_design_dramatic_structure"]
+                ),
+
+                # --- المرحلة الخامسة: التدقيق والمراجعة ---
+                 WorkflowTask(
+                    id="task_6_dialect_and_critic_review",
+                    name="المرحلة 5: المراجعة النقدية واللهجية",
+                    task_type=TaskType.CUSTOM_AGENT_TASK,
+                    input_data={
+                        "agent_id": "dialect_authenticity_guardian", # يبدأ بالتدقيق اللهجي
+                        "next_agent_id": "literary_critic" # ثم يمرر للنقد الأدبي
+                    },
+                    dependencies=["task_5_write_scenes"]
+                ),
+
+                # --- المرحلة السادسة: التجميع النهائي ---
+                WorkflowTask(
+                    id="task_7_final_assembly",
+                    name="المرحلة 6: تجميع المسودة الأولى الكاملة",
+                    task_type=TaskType.MERGE_DATA,
+                    dependencies=["task_6_dialect_and_critic_review"]
+                )
+            ]
+        )
+        
+        self.templates[professional_playwriting_v1.id] = professional_playwriting_v1
+
+# ...
+# يجب التأكد من أن المنسق يعرف كيفية التعامل مع المهام التكرارية (`is_loop`)
+# ويجب إنشاء ملف `workflow_templates_models.py` إذا لم يكن موجودًا
+
+    
+
+IGNORE_WHEN_COPYING_START
