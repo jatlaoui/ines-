@@ -821,3 +821,76 @@ raouf_maher_deep_emulation_v1 = WorkflowTemplate(
 )
 # تسجيل القالب الجديد في __init__
 # self.templates[raouf_maher_deep_emulation_v1.id] = raouf_maher_deep_emulation_v1
+# في ملف tools/workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 13. قالب المحاكاة العميقة ببروتوكول الروح الشعرية
+# ----------------------------------------------------------------------
+deep_soul_protocol_v1 = WorkflowTemplate(
+    id="deep_soul_protocol_v1",
+    name="إنتاج أغنية ببروتوكول الروح الشعرية العميقة",
+    description="سير عمل استراتيجي يبدأ من الرمز، ثم التقمص، ثم الهندسة، وأخيرًا الصقل اللهجي.",
+    category="deep_artistic_emulation",
+    tasks=[
+        # --- المرحلة 1: التحليل والتأسيس الرمزي ---
+        WorkflowTask(
+            id="task_1_soul_profile",
+            name="تحليل الملف الروحي للنصوص",
+            # ... (كما هي)
+        ),
+        WorkflowTask(
+            id="task_2_sectional_rhythm_profile",
+            name="تحليل البصمة الأدائية المقطعية",
+            # ... (كما هي)
+        ),
+        WorkflowTask(
+            id="task_3_generate_metaphor",
+            name="توليد الصورة الشعرية المركزية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "dream_symbol_interpreter_agent", "topic": "{song_topic}"},
+            dependencies=["task_1_soul_profile"]
+        ),
+        
+        # --- المرحلة 2: الكتابة الخام من الرمز ---
+        WorkflowTask(
+            id="task_4_raw_composition",
+            name="كتابة تيار الوعي الخام من الرمز",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "poem_composer_agent"}, # سيأخذ المخرجات من المهام السابقة
+            dependencies=["task_1_soul_profile", "task_3_generate_metaphor"]
+        ),
+        
+        # --- المرحلة 3: الهندسة والصقل ---
+        WorkflowTask(
+            id="task_5_flow_engineering",
+            name="هندسة بنية الأغنية حول الرمز",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lyrical_flow_master_agent"},
+            dependencies=["task_2_sectional_rhythm_profile", "task_4_raw_composition", "task_3_generate_metaphor"]
+        ),
+        WorkflowTask(
+            id="task_6_dialect_review", # [مهمة جديدة]
+            name="مراجعة وصقل الأصالة اللهجية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "dialect_authenticity_guardian_agent"},
+            dependencies=["task_5_flow_engineering"]
+        ),
+
+        # --- المرحلة 4: الأداء والنقد النهائي ---
+        WorkflowTask(
+            id="task_7_performance_direction",
+            name="إضافة توجيهات الأداء المقطعية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "vocal_performance_director_agent"},
+            dependencies=["task_2_sectional_rhythm_profile", "task_6_dialect_review"] # يعتمد على النص المصقول
+        ),
+        WorkflowTask(
+            id="task_8_final_critique",
+            name="المراجعة الجمالية النهائية",
+            # ... (كما هي، لكنها تعتمد على المخرج النهائي)
+            dependencies=["task_7_performance_direction"]
+        )
+    ]
+)
+# تسجيل القالب الجديد في __init__
+# self.templates[deep_soul_protocol_v1.id] = deep_soul_protocol_v1
