@@ -752,3 +752,72 @@ class AdvancedWorkflowTemplates:
     
 
 IGNORE_WHEN_COPYING_START
+# في ملف tools/workflow_templates.py داخل فئة AdvancedWorkflowTemplates
+
+# ----------------------------------------------------------------------
+# 12. قالب المحاكاة العميقة لأسلوب رؤوف ماهر
+# ----------------------------------------------------------------------
+raouf_maher_deep_emulation_v1 = WorkflowTemplate(
+    id="raouf_maher_deep_emulation_v1",
+    name="إنتاج أغنية بأسلوب رؤوف ماهر (محاكاة عميقة)",
+    description="سير عمل متكامل يحلل الأسلوب الموسيقي والأدائي، ثم ينتج كلمات ذات بنية وأداء مقطعي.",
+    category="deep_artistic_emulation",
+    tasks=[
+        # --- المرحلة 1: التحليل الشامل (الأذن) ---
+        WorkflowTask(
+            id="task_1_soul_profile",
+            name="تحليل الملف الروحي للنصوص",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "soul_profiler_agent", "text_content": "{artist_lyrics_corpus}"}
+        ),
+        WorkflowTask(
+            id="task_2_sectional_rhythm_profile",
+            name="تحليل البصمة الأدائية والموسيقية المقطعية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "rhythm_flow_analyzer_agent", "audio_source": "{artist_audio_sample}"}
+        ),
+        
+        # --- المرحلة 2: بناء السيناريو والوعي الخام (القلب) ---
+        WorkflowTask(
+            id="task_3_build_scenario",
+            name="بناء السيناريو الحسي للموضوع",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "scenario_builder_agent", "topic": "{song_topic}"},
+            dependencies=["task_1_soul_profile"]
+        ),
+        WorkflowTask(
+            id="task_4_raw_composition",
+            name="كتابة تيار الوعي الخام (التقمص)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "poem_composer_agent"}, # سيأخذ المخرجات من المهام السابقة
+            dependencies=["task_1_soul_profile", "task_3_build_scenario"]
+        ),
+        
+        # --- المرحلة 3: الهندسة والأداء (الصوت) ---
+        WorkflowTask(
+            id="task_5_flow_engineering",
+            name="هندسة بنية الأغنية (مقاطع ولازمة)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "lyrical_flow_master_agent"},
+            dependencies=["task_2_sectional_rhythm_profile", "task_4_raw_composition"]
+        ),
+        WorkflowTask(
+            id="task_6_performance_direction",
+            name="إضافة توجيهات الأداء المقطعية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "vocal_performance_director_agent"},
+            dependencies=["task_2_sectional_rhythm_profile", "task_5_flow_engineering"]
+        ),
+        
+        # --- المرحلة 4: النقد النهائي (العقل) ---
+        WorkflowTask(
+            id="task_7_final_critique",
+            name="المراجعة الجمالية النهائية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "aesthetic_critic_agent"},
+            dependencies=["task_6_performance_direction"]
+        )
+    ]
+)
+# تسجيل القالب الجديد في __init__
+# self.templates[raouf_maher_deep_emulation_v1.id] = raouf_maher_deep_emulation_v1
