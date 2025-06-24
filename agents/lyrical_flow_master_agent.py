@@ -45,3 +45,25 @@ class LyricalFlowMasterAgent(BaseAgent):
 **الناتج النهائي يجب أن يكون الكلمات المهندسة فقط، مقسمة بوضوح.**
 """
     # ...
+# داخل LyricalFlowMasterAgent
+
+async def expand_lyrics(self, lyrics_section: str, expansion_level: int = 2) -> str:
+    """
+    يتوسع في مقطع شعري بشكل تكراري.
+    """
+    current_text = lyrics_section
+    for i in range(expansion_level):
+        prompt = f"""
+مهمتك: أنت شاعر متخصص في إثراء النصوص. النص التالي هو مقطع من أغنية. قم بتوسيعه عن طريق إضافة تفاصيل وصور شعرية أكثر عمقًا دون تغيير الفكرة الأساسية.
+
+**النص الحالي للتوسيع:**
+---
+{current_text}
+---
+
+**النسخة الموسعة:**
+"""
+        current_text = await llm_service.generate_text_response(prompt, temperature=0.75)
+    return current_text
+
+# سيتم تعديل مهمة الكتابة الرئيسية لاستدعاء هذه الدالة بعد كتابة كل مقطع.
