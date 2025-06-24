@@ -1,26 +1,29 @@
-# ingestion/ingestion_engine.py
+# ingestion/ingestion_engine.py (V2 - PDF Enabled)
 """
 Multimedia Ingestion Engine
 محرك متخصص في استيعاب أنواع مختلفة من المدخلات وتحويلها إلى نص نظيف.
+V2: يستخدم Gemini File API لمعالجة ملفات PDF مباشرة.
 """
 import logging
+import base64
 from typing import Dict, Any, Optional
 from enum import Enum
-import requests
+import httpx
 from bs4 import BeautifulSoup
 
-# استيراد الأدوات التي بنيناها سابقًا
-from tools.advanced_pdf_service import AdvancedPDFService, pdf_service # نفترض أننا نستخدم المثيل الوحيد
-# from tools.audio_transcriber import audio_transcriber # أداة مستقبلية لتحويل الصوت لنص
+# استيراد الخدمات والعميل الأساسي
+from core.llm_service import llm_service # لم يعد ضروريًا هنا مباشرة ولكن جيد للاستمرارية
+
+# نحتاج إلى العميل الأساسي لـ genai للوصول إلى File API
+import google.generativeai as genai
 
 logger = logging.getLogger("IngestionEngine")
 
 class InputType(Enum):
     RAW_TEXT = "نص مباشر"
     URL = "رابط ويب"
-    PDF_FILE = "ملف PDF"
+    PDF_FILE_PATH = "مسار ملف PDF" # أصبحنا نتعامل مع المسارات
     AUDIO_FILE = "ملف صوتي"
-    YOUTUBE_URL = "رابط يوتيوب"
 
 class IngestionResult:
     """نتيجة عملية الاستيعاب."""
@@ -32,12 +35,11 @@ class IngestionResult:
 
 class MultimediaIngestionEngine:
     """
-    محرك استيعاب المدخلات متعدد الوسائط.
+    محرك استيعاب المدخلات متعدد الوسائط (V2).
     """
     def __init__(self):
-        self.pdf_service = pdf_service
-        # self.audio_service = audio_transcriber # سيتم تفعيله لاحقًا
-        logger.info("Multimedia Ingestion Engine initialized.")
+        # لم نعد بحاجة لخدمات PDF خارجية، سنستخدم Gemini مباشرة
+        logger.info("✅ Multimedia Ingestion Engine (V2) Initialized with Gemini File API capabilities.")
 
     async def ingest(self, source: str, input_type: InputType, options: Optional[Dict] = None) -> IngestionResult:
         """
@@ -50,8 +52,8 @@ class MultimediaIngestionEngine:
                 return await self._ingest_raw_text(source)
             elif input_type == InputType.URL:
                 return await self._ingest_url(source)
-            elif input_type == InputType.PDF_FILE:
-                # 'source' هنا هو محتوى الملف (bytes)
+            elif input_type == InputType.PDF_FILE_PATH:
+                # 'source' هنا هو مسار الملف المحلي
                 return await self._ingest_pdf(source)
             elif input_type == InputType.AUDIO_FILE:
                 return await self._ingest_audio(source)
@@ -59,7 +61,7 @@ class MultimediaIngestionEngine:
                 raise ValueError(f"نوع المدخل غير مدعوم: {input_type}")
 
         except Exception as e:
-            logger.error(f"Failed to ingest source. Type: {input_type.value}, Error: {e}")
+            logger.error(f"Failed to ingest source. Type: {input_type.value}, Error: {e}", exc_info=True)
             return IngestionResult(success=False, error=str(e))
 
     async def _ingest_raw_text(self, text: str) -> IngestionResult:
@@ -78,62 +80,67 @@ class MultimediaIngestionEngine:
         """استيعاب محتوى من رابط ويب."""
         logger.info(f"Fetching content from URL: {url}")
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status() # يثير خطأ إذا كانت الاستجابة غير ناجحة
+            async with httpx.AsyncClient() as client:
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                response = await client.get(url, headers=headers, timeout=15, follow_redirects=True)
+                response.raise_for_status()
 
-            # استخدام BeautifulSoup لتنظيف واستخلاص النص من HTML
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # إزالة التاغات غير المرغوب فيها (scripts, styles)
             for script_or_style in soup(["script", "style"]):
                 script_or_style.decompose()
-
             text = soup.get_text(separator='\n', strip=True)
-            
             title = soup.title.string if soup.title else "بدون عنوان"
-
-            metadata = {
-                "source_type": InputType.URL.value,
-                "source_url": url,
-                "title": title,
-                "char_count": len(text),
-                "word_count": len(text.split())
-            }
+            metadata = {"source_type": InputType.URL.value, "source_url": url, "title": title}
             return IngestionResult(success=True, text_content=text, metadata=metadata)
-
-        except requests.RequestException as e:
+        except httpx.RequestException as e:
             raise IOError(f"فشل في جلب المحتوى من الرابط: {e}")
 
-    async def _ingest_pdf(self, pdf_bytes: bytes) -> IngestionResult:
-        """استيعاب محتوى من ملف PDF."""
-        if not self.pdf_service:
-            return IngestionResult(success=False, error="خدمة معالجة PDF غير متاحة.")
+    async def _ingest_pdf(self, file_path: str) -> IngestionResult:
+        """[مُعدَّل] استيعاب محتوى من ملف PDF باستخدام File API."""
+        uploaded_file = None
+        try:
+            logger.info(f"Uploading PDF '{file_path}' using Gemini File API...")
+            # 1. تحميل الملف
+            uploaded_file = genai.upload_file(path=file_path)
+            
+            # التأكد من أن الملف في حالة جاهزية
+            while uploaded_file.state.name == "PROCESSING":
+                await asyncio.sleep(2) # انتظار لمدة ثانيتين
+                uploaded_file = genai.get_file(name=uploaded_file.name)
+            
+            if uploaded_file.state.name == "FAILED":
+                raise ValueError(f"File processing failed: {uploaded_file.uri}")
 
-        logger.info("Extracting text from PDF file...")
-        # استخدام خدمتنا المتقدمة التي بنيناها
-        text, error = self.pdf_service.extract_text_only(pdf_bytes)
+            logger.info(f"File uploaded successfully. URI: {uploaded_file.uri}. Extracting content...")
+            
+            # 2. استخلاص النص باستخدام النموذج
+            prompt = "استخلص النص الكامل من ملف PDF المرفق بدقة. حافظ على بنية الفقرات."
+            response = llm_service.model.generate_content([prompt, uploaded_file])
+            text_content = response.text
+            
+            metadata = {
+                "source_type": InputType.PDF_FILE_PATH.value,
+                "file_name": uploaded_file.display_name,
+                "file_uri": uploaded_file.uri,
+                "mime_type": uploaded_file.mime_type
+            }
+            
+            return IngestionResult(success=True, text_content=text_content, metadata=metadata)
         
-        if error:
-            return IngestionResult(success=False, error=f"فشل استخلاص PDF: {error}")
-
-        info = self.pdf_service.get_pdf_info(pdf_bytes)
-        metadata = {
-            "source_type": InputType.PDF_FILE.value,
-            **info.get("metadata", {})
-        }
+        except Exception as e:
+            logger.error(f"Error during PDF ingestion with File API: {e}", exc_info=True)
+            return IngestionResult(success=False, error=f"فشل استخلاص PDF: {e}")
         
-        return IngestionResult(success=True, text_content=text, metadata=metadata)
+        finally:
+            # 3. (اختياري) حذف الملف بعد المعالجة لتنظيف الموارد
+            if uploaded_file:
+                genai.delete_file(name=uploaded_file.name)
+                logger.info(f"Cleaned up uploaded file: {uploaded_file.name}")
 
-    async def _ingest_audio(self, audio_bytes: bytes) -> IngestionResult:
+
+    async def _ingest_audio(self, source: str) -> IngestionResult:
         """(مستقبلي) استيعاب محتوى من ملف صوتي."""
-        # if not self.audio_service:
-        #     return IngestionResult(success=False, error="خدمة تحويل الصوت إلى نص غير متاحة.")
-        
-        logger.info("Transcribing audio file...")
-        # transcript = await self.audio_service.transcribe(audio_bytes)
-        # return IngestionResult(success=True, text_content=transcript, metadata=...)
-        
+        logger.warning("Audio ingestion is not implemented yet.")
         return IngestionResult(success=False, error="ميزة تحويل الصوت إلى نص قيد التطوير.")
         
 # إنشاء مثيل وحيد من المحرك
