@@ -1,4 +1,4 @@
-# agents/lyrical_flow_master_agent.py (وكيل جديد)
+# agents/lyrical_flow_master_agent.py (V2 - Sectionally Aware)
 import logging
 from typing import Dict, Any, List, Optional
 from .base_agent import BaseAgent
@@ -8,59 +8,69 @@ logger = logging.getLogger("LyricalFlowMasterAgent")
 
 class LyricalFlowMasterAgent(BaseAgent):
     """
-    وكيل متخصص في هندسة التدفق الموسيقي (Flow) والقافية للنصوص الغنائية.
-    يعمل كـ "منتج موسيقي" للنص.
+    [مُحسّن] وكيل متخصص في هندسة التدفق الموسيقي والقافية بناءً على بصمة مقطعية.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
             agent_id=agent_id or "lyrical_flow_master",
-            name="مهندس التدفق الغنائي",
-            description="يراجع النصوص الغنائية الخام ويحسن إيقاعها وقوافيها وتدفقها."
+            name="مهندس التدفق الغنائي المقطعي",
+            description="يعيد هيكلة النصوص الخام إلى أغنية ذات بنية (مقاطع ولازمة)."
         )
 
     async def engineer_flow(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        الوظيفة الرئيسية: يأخذ نصًا خامًا (تيار وعي) ويحوله إلى كلمات راب متقنة.
+        [مُحسّن] يأخذ نصًا خامًا ويحوله إلى كلمات راب متقنة ذات بنية.
         """
         raw_lyrics = context.get("raw_lyrics")
-        rhythmic_fingerprint = context.get("rhythmic_fingerprint") # من محلل الإيقاع
+        sectional_fingerprints = context.get("sectional_fingerprints") # [جديد]
         
-        if not raw_lyrics or not rhythmic_fingerprint:
-            return {"status": "error", "message": "Raw lyrics and rhythmic fingerprint are required."}
+        if not raw_lyrics or not sectional_fingerprints:
+            return {"status": "error", "message": "Raw lyrics and sectional fingerprints are required."}
             
-        logger.info("Engineering lyrical flow...")
+        logger.info("Engineering lyrical flow with sectional awareness...")
         
-        prompt = self._build_flow_engineering_prompt(raw_lyrics, rhythmic_fingerprint)
-        
+        prompt = self._build_flow_engineering_prompt(raw_lyrics, sectional_fingerprints)
         engineered_lyrics = await llm_service.generate_text_response(prompt, temperature=0.7)
         
         return {
             "status": "success",
             "content": {"engineered_lyrics": engineered_lyrics},
-            "summary": "The raw text has been engineered into structured rap lyrics."
+            "summary": "The raw text has been engineered into a structured song."
         }
 
-    def _build_flow_engineering_prompt(self, raw_text: str, fingerprint: Dict) -> str:
+    def _build_flow_engineering_prompt(self, raw_text: str, fingerprints: Dict) -> str:
+        # [مُحسّن] الـ Prompt الآن يوجه الـ LLM لبناء الأغنية مقطعًا بمقطع
         return f"""
-مهمتك: أنت منتج موسيقي وخبير في كتابة أغاني الراب. لديك "نص خام" (Stream of Consciousness) من فنان، ومهمتك هي إعادة هيكلته وهندسته ليصبح أغنية راب ذات تدفق (Flow) قوي وإيقاع جذاب، مع الالتزام بالبصمة الإيقاعية للفنان.
-
-**البصمة الإيقاعية للفنان:**
-- **السرعة العامة:** {fingerprint.get('overall_bpm')} BPM
-- **أسلوب التدفق (Flow):** {fingerprint.get('flow_style')}
-- **توجيهات الإيقاع:** {', '.join(fingerprint.get('pacing_directives', []))}
+مهمتك: أنت مهندس كلمات (Lyric Engineer) محترف. مهمتك هي تحويل "تيار الوعي" الخام التالي إلى أغنية متكاملة ذات بنية واضحة (مقطع 1، لازمة، مقطع 2).
 
 **النص الخام للمراجعة والهندسة:**
 ---
 {raw_text}
 ---
 
-**التعليمات:**
-1.  **الحفاظ على الروح:** حافظ على جوهر ومعنى وأفكار النص الخام. لا تضف أفكارًا جديدة.
-2.  **هندسة القافية:** أعد ترتيب الكلمات والجمل لإنشاء قوافي قوية. استخدم قوافي داخلية (internal rhymes) وقوافي متعددة المقاطع (multi-syllable rhymes). لا تتردد في كسر القافية إذا كان ذلك يخدم الإيقاع.
-3.  **ضبط التدفق:** قم بتقسيم النص إلى "بارات" (سطور) قصيرة وطويلة لتعكس التنوع في التدفق المطلوب. أضف وقفات أو كرر كلمات لخلق إيقاع مميز.
-4.  **اللغة:** حافظ على نفس مستوى اللغة واللهجة العامية الموجودة في النص الأصلي.
+**التعليمات الهيكلية والأدائية (مهم جدًا):**
+1.  **بنية الأغنية:** يجب أن تتبع الهيكل التالي: [المقطع الأول] -> [اللازمة] -> [المقطع الثاني].
+2.  **المقطع الأول (Verse 1):**
+    - **المحتوى:** استخدم الأفكار الأولية من النص الخام التي تصف المشكلة أو الحكاية.
+    - **الأسلوب:** يجب أن يكون التدفق {fingerprints['verse_fingerprint']['flow']}.
+3.  **اللازمة (Chorus):**
+    - **المحتوى:** استخلص الفكرة الرئيسية أو الشعور الأعمق من النص الخام واجعله اللازمة. يجب أن تكون اللازمة قوية وموجزة.
+    - **الأسلوب:** يجب أن يكون التدفق {fingerprints['chorus_fingerprint']['flow']}.
+4.  **المقطع الثاني (Verse 2):**
+    - **المحتوى:** استخدم الأفكار المتبقية التي تطور القصة أو تتعمق في الصراع.
+    - **الأسلوب:** يجب أن يكون التدفق {fingerprints['verse_fingerprint']['flow']}.
+5.  **القافية والإيقاع:** حافظ على القافية والوزن مع الحفاظ على صدق المعنى. استخدم قوافي داخلية ومتعددة المقاطع.
 
-**الناتج النهائي يجب أن يكون الكلمات المهندسة فقط، جاهزة للغناء.**
+**الناتج النهائي يجب أن يكون الكلمات المهندسة فقط، مقسمة بوضوح.**
+
+[المقطع الأول]
+(اكتب هنا)
+
+[اللازمة]
+(اكتب هنا)
+
+[المقطع الثاني]
+(اكتب هنا)
 """
 
     async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
