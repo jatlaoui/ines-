@@ -1,54 +1,73 @@
-# agents/dream_symbol_interpreter_agent.py
-"""
-DreamSymbolInterpreterAgent (مفسر الأحلام والرموز)
-وكيل متخصص في إضافة العمق الرمزي للنصوص عبر الأحلام وتفسيرها.
-"""
+# agents/dream_symbol_interpreter_agent.py (V2 - Functional)
 import logging
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
-# from tools.dream_symbol_interpreter import DreamSymbolInterpreter # الأداة المتخصصة
+from ..core.llm_service import llm_service
 
 logger = logging.getLogger("DreamSymbolInterpreterAgent")
 
 class DreamSymbolInterpreterAgent(BaseAgent):
     """
-    وكيل متخصص في تفسير وتوليد الأحلام والرموز.
+    وكيل مفسر الأحلام والرموز (V2).
+    يستخدم LLM لتحليل المشاهد الحلمية وتقديم تفسيرات رمزية وسردية.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
-            agent_id=agent_id,
+            agent_id=agent_id or "dream_symbol_interpreter",
             name="مفسر الأحلام والرموز",
             description="يضيف عمقًا رمزيًا وفلسفيًا للنص من خلال توليد وتفسير الأحلام."
         )
-        # self.interpreter_tool = DreamSymbolInterpreter() # سيتم تفعيله لاحقًا
-        logger.info("DreamSymbolInterpreterAgent initialized.")
+        logger.info("✅ Functional Dream & Symbol Interpreter Agent (V2) Initialized.")
 
-    async def generate_symbolic_dream(self, context: Dict[str, Any], feedback: Optional[Any] = None) -> Dict[str, Any]:
+    async def generate_central_metaphor(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        الوظيفة الرئيسية: توليد حلم رمزي لشخصية.
+        [مهمة جديدة] يولد صورة شعرية مركزية (استعارة) لموضوع معين.
+        'context' يجب أن يحتوي على:
+        - topic: الموضوع العام (مثل "الغربة والحنين").
+        - soul_profile: الملف الروحي للفنان.
         """
-        character_profile = context.get("character_profile")
-        narrative_situation = context.get("narrative_situation", "موقف حاسم")
+        topic = context.get("topic")
+        soul_profile = context.get("soul_profile")
         
-        if not character_profile:
-            raise ValueError("ملف الشخصية مطلوب لتوليد الحلم.")
+        if not topic or not soul_profile:
+            return {"status": "error", "message": "Topic and soul profile are required."}
             
-        logger.info(f"Generating symbolic dream for '{character_profile.get('character_name')}' in situation: {narrative_situation}...")
+        logger.info(f"Generating a central metaphor for topic: '{topic}'...")
         
-        # محاكاة لعملية التوليد
-        dream = {
-            "dream_content": "رأى الشخصية أنها تسير في صحراء شاسعة، وتبحث عن بئر ماء. فجأة، وجدت شجرة زيتون وحيدة، ومن تحتها نبع ماء صافٍ.",
-            "symbols": {
-                "الصحراء": "ترمز إلى الضياع والتيه النفسي للشخصية.",
-                "البئر": "يرمز إلى البحث عن الحقيقة أو الخلاص.",
-                "شجرة الزيتون": "ترمز إلى السلام والبركة والأمل.",
-                "الماء الصافي": "يرمز إلى الوضوح وتحقيق الهدف."
-            },
-            "narrative_function": "يعكس هذا الحلم رحلة الشخصية الداخلية من الضياع إلى إيجاد الأمل والوضوح، ويمهد لتحول إيجابي قادم في القصة."
-        }
+        prompt = self._build_metaphor_prompt(topic, soul_profile)
         
+        metaphor = await llm_service.generate_json_response(prompt, temperature=0.9)
+
+        if "error" in metaphor:
+            return {"status": "error", "message": "LLM call for metaphor generation failed.", "details": metaphor}
+
         return {
-            "content": dream,
-            "summary": f"تم توليد حلم رمزي يعكس رحلة الشخصية."
+            "status": "success",
+            "content": {"central_metaphor": metaphor},
+            "summary": "Central metaphor generated successfully."
         }
+        
+    def _build_metaphor_prompt(self, topic: str, profile: Dict) -> str:
+        return f"""
+مهمتك: أنت شاعر و فيلسوف. مهمتك ليست كتابة أغنية، بل خلق **الصورة الشعرية المركزية (Central Metaphor)** التي ستكون قلب الأغنية.
+
+**الموضوع:** {topic}
+**روح الفنان:** يميل إلى مواضيع {profile.get('core_themes', [])}، ويستخدم رموزًا مثل {profile.get('symbolic_lexicon', {}).get('key_symbols', [])}.
+
+**المطلوب:**
+ابتكر صورة شعرية واحدة، ملموسة، ومبتكرة لتجسيد هذا الموضوع. يجب أن تكون الصورة قابلة للتطور داخل الأغنية.
+أرجع ردك **حصريًا** بتنسيق JSON.
+{{
+  "metaphor_object": "string // الشيء المادي الذي يمثل الرمز (مثال: 'مفتاح صدئ').",
+  "metaphor_meaning": "string // المعنى العميق لهذا الرمز (مثال: 'يمثل الأمل المفقود والذكريات التي لا يمكن الوصول إليها').",
+  "sensory_details": ["string"] // قائمة بتفاصيل حسية مرتبطة بالرمز (مثال: 'ملمسه بارد'، 'رائحته كرائحة التراب القديم').
+}}
+"""
+
+    async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        # تم تعديل المهمة الافتراضية لتكون توليد الاستعارة
+        return await self.generate_central_metaphor(context)
+
+# إنشاء مثيل وحيد
+dream_symbol_interpreter_agent = DreamSymbolInterpreterAgent()
