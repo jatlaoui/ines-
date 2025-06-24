@@ -1,18 +1,19 @@
-# orchestrators/athena_strategic_orchestrator.py (وكيل جديد)
+# orchestrators/athena_strategic_orchestrator.py (V2 - Reasoning & Memory-Aware)
 import logging
 from typing import Dict, Any, List
 
-from ..agents.base_agent import BaseAgent
-from ..core.llm_service import llm_service
-from ..core.workflow_templates import TaskType # استيراد أنواع المهام
+# استيراد المكونات الأساسية
+from core.base_agent import BaseAgent
+from core.llm_service import llm_service
+from core.workflow_templates_models import TaskType # استيراد أنواع المهام
+from core.core_narrative_memory import narrative_memory # [جديد] الوصول إلى الذاكرة
 
 logger = logging.getLogger("AthenaStrategicOrchestrator")
 
 class AthenaStrategicOrchestrator(BaseAgent):
     """
-    "أثينا" - المنسق الاستراتيجي.
-    وكيل عالي المستوى وظيفته التخطيط واتخاذ القرار. يحدد المهمة التالية
-    الأنسب بناءً على الحالة الحالية للمشروع والهدف النهائي.
+    "أثينا" - المنسق الاستراتيجي (V2).
+    تستخدم سلسلة الأفكار والذاكرة السردية لاتخاذ قرارات ديناميكية ومستنيرة.
     """
     def __init__(self, agent_id: str = "athena_orchestrator"):
         super().__init__(
@@ -20,87 +21,79 @@ class AthenaStrategicOrchestrator(BaseAgent):
             name="أثينا - المخطط الاستراتيجي",
             description="تقرر الخطوة التالية في العملية الإبداعية بشكل ديناميكي."
         )
+        logger.info("✅ Athena Strategic Orchestrator (V2) initialized.")
 
-    async def decide_next_task(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def decide_next_task(self, project_goal: str, project_state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         الوظيفة الرئيسية: تقرر المهمة التالية.
-        'context' يجب أن يحتوي على:
-        - project_goal: الهدف النهائي للمشروع (e.g., "كتابة رواية كاملة").
-        - project_state: الحالة الحالية الكاملة للمشروع (المخرجات، التقييمات).
-        - last_task_output: مخرجات آخر مهمة تم تنفيذها.
         """
-        project_goal = context.get("project_goal")
-        project_state = context.get("project_state")
-        last_task_output = context.get("last_task_output")
-
-        if not project_goal or not project_state:
-            return {"status": "error", "message": "Project goal and state are required."}
-            
         logger.info("Athena: Strategizing next optimal task...")
 
-        prompt = self._build_decision_prompt(project_goal, project_state, last_task_output)
-        decision = await llm_service.generate_json_response(prompt, temperature=0.1)
-
-        if "error" in decision:
-            return {"status": "error", "message": "Athena failed to make a strategic decision.", "details": decision}
-
-        # التحقق من أن المهمة المقترحة من الأنواع المعروفة
-        try:
-            TaskType(decision.get("next_task_type"))
-        except ValueError:
-            logger.error(f"Athena suggested an invalid task type: {decision.get('next_task_type')}")
-            # خطة بديلة: اقتراح مهمة مراجعة عامة
-            decision["next_task_type"] = TaskType.CHECK_CONSISTENCY.value
-            decision["justification"] = "Fallback: Reviewing overall consistency due to strategic error."
-
-        return {
-            "status": "success",
-            "content": {"strategic_decision": decision},
-            "summary": f"Athena's decision: '{decision.get('next_task_type')}' - Reason: {decision.get('justification')}"
-        }
-
-    def _build_decision_prompt(self, goal: str, state: Dict, last_output: Dict) -> str:
+        # [جديد] استعلام الذاكرة للحصول على سياق إضافي
+        unresolved_conflicts = narrative_memory.query("What are the unresolved conflicts in the story?", top_k=2)
         
-        # تحويل حالة المشروع إلى نص مفهوم للـ LLM
+        prompt = self._build_decision_prompt(project_goal, project_state, unresolved_conflicts)
+        
+        # أثينا تحتاج إلى مخرجات منظمة لضمان موثوقية قراراتها
+        decision = await llm_service.generate_structured_response(
+            prompt=prompt,
+            response_model=StrategicDecision, # سنحتاج لتعريف هذا النموذج
+            system_instruction="أنت 'أثينا'، ذكاء استراتناعي استراتيجي فائق. وظيفتك هي التفكير خطوة بخطوة لاتخاذ القرار الأمثل للمهمة التالية.",
+            temperature=0.0 # درجة حرارة منخفضة جدًا للقرارات المنطقية
+        )
+        
+        if not decision:
+            logger.error("Athena failed to make a strategic decision.")
+            return None
+        
+        logger.info(f"Athena's Decision: Task '{decision.next_task_type}' - Justification: {decision.justification}")
+        return decision.dict()
+
+    def _build_decision_prompt(self, goal: str, state: Dict, unresolved_conflicts: List[Dict]) -> str:
+        
         state_summary = f"""
-- **الفكرة الأساسية:** {state.get('idea', {}).get('premise')}
-- **المخطط:** {len(state.get('blueprint', {}).get('chapters', []))} فصول مخطط لها.
-- **الفصول المكتوبة:** {len(state.get('written_chapters', []))} فصول مكتوبة.
+- **آخر مهمة:** {state.get('last_task_type', 'N/A')}
+- **ملخص آخر مخرجات:** {str(state.get('last_task_output', {}).get('summary'))[:200]}
 - **آخر تقييم جودة:** {state.get('latest_critique', {}).get('overall_score', 'N/A')}
-- **آخر ملاحظات الناقد:** {state.get('latest_critique', {}).get('issues', [])}
+- **أهم ملاحظات الناقد:** {state.get('latest_critique', {}).get('issues', [])}
+- **صراعات لم تُحل (من الذاكرة):** {[c['content'] for c in unresolved_conflicts]}
         """
 
         return f"""
-مهمتك: أنت "أثينا"، ذكاء اصطناعي استراتيجي فائق متخصص في إدارة المشاريع الإبداعية. وظيفتك ليست الكتابة، بل التفكير والتخطيط. بناءً على الهدف النهائي للمشروع وحالته الحالية، قرر ما هي **المهمة المنطقية التالية** التي يجب تنفيذها.
-
 **الهدف النهائي للمشروع:**
 "{goal}"
 
 **ملخص حالة المشروع الحالية:**
 {state_summary}
 
-**مخرجات آخر مهمة تم تنفيذها:**
-{str(last_output)[:1000]}
-
-**قائمة المهام المتاحة (TaskType):**
+**قائمة المهام المتاحة:**
 {', '.join([e.value for e in TaskType])}
 
-**المطلوب:**
-بناءً على كل ما سبق، اتخذ قرارًا استراتيجيًا. يجب أن يكون قرارك في صيغة JSON ويحتوي على:
-- **next_task_type:** (string) معرف المهمة التالية التي يجب تنفيذها من القائمة أعلاه.
-- **input_data:** (object) قاموس بالمدخلات المحددة التي تحتاجها هذه المهمة.
-- **justification:** (string) جملة واحدة تشرح **لماذا** اخترت هذه المهمة تحديدًا في هذه اللحظة.
+**مهمتك: فكر خطوة بخطوة لتحديد أفضل مهمة تالية.**
+1.  **تحليل الوضع:** ما هي المشكلة الأكثر إلحاحًا الآن بناءً على حالة المشروع؟ (مثال: الجودة منخفضة، الحبكة متوقفة، هناك صراع لم يتم استكشافه).
+2.  **تحديد الهدف:** ما هو الهدف المباشر للخطوة التالية؟ (مثال: تحسين الفصل الأخير، إدخال حبكة فرعية جديدة، كسر روتين القصة).
+3.  **اختيار الأداة (الوكيل):** من هو الوكيل الأنسب لتحقيق هذا الهدف؟
+4.  **تحديد المهمة:** ما هي المهمة المحددة (`TaskType`) التي يجب أن ينفذها هذا الوكيل؟
+5.  **تجميع القرار:** بناءً على ما سبق، صغِ قرارك النهائي.
 
-**أمثلة على التفكير الاستراتيجي:**
-- إذا كانت جودة الفصل الأخير منخفضة، قد تكون المهمة التالية هي `REFINE_TEXT` أو استدعاء ناقد متخصص `CUSTOM_AGENT_TASK`.
-- إذا كانت القصة تفتقر إلى التشويق، قد تكون المهمة التالية هي `CUSTOM_AGENT_TASK` مع `agent_id: 'creative_chaos_agent'`.
-- إذا تم الانتهاء من كتابة كل الفصول، قد تكون المهمة التالية هي `CHECK_CONSISTENCY`.
-
-**قرارك الاستراتيجي (JSON):**
+**قم بتعبئة القرار النهائي فقط في البنية المحددة.**
 """
 
     async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        return await self.decide_next_task(context)
+        decision = await self.decide_next_task(
+            project_goal=context.get("project_goal"),
+            project_state=context.get("project_state")
+        )
+        if decision:
+            return {"status": "success", "content": {"strategic_decision": decision}}
+        else:
+            return {"status": "error", "message": "Athena could not reach a decision."}
+
+# --- [جديد] تعريف نموذج Pydantic لقرار أثينا ---
+class StrategicDecision(BaseModel):
+    next_task_type: TaskType = Field(description="المعرف الدقيق للمهمة التالية التي يجب تنفيذها.")
+    input_data: Dict[str, Any] = Field(description="القاموس الذي يحتوي على المدخلات اللازمة للمهمة التالية (مثل agent_id).")
+    justification: str = Field(description="جملة واحدة تشرح لماذا هذا القرار هو الأمثل استراتيجيًا الآن.")
 
 # إنشاء مثيل وحيد
 athena_orchestrator = AthenaStrategicOrchestrator()
