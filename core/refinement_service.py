@@ -1,64 +1,71 @@
-# core/refinement_service.py
+# core/refinement_service.py (V2 - Functional & Agent-Driven)
 
 import logging
-from typing import Any, Callable, Dict, Optional, List, Awaitable
+from typing import Any, Dict, Optional
+import asyncio
+
+# استيراد الوكلاء الذين تم تفعيلهم
+from agents.chapter_composer_agent import chapter_composer_agent, ChapterOutline
+from agents.literary_critic_agent import literary_critic_agent, CritiqueReport
 
 logger = logging.getLogger("RefinementService")
 
 class RefinementService:
     """
     خدمة عامة لإدارة دورة التحسين التكرارية (Create -> Critique -> Refine).
+    V2: مصممة للعمل مع وكلاء INES الذين تم تفعيلهم.
     """
     def __init__(
         self,
-        creator_fn: Callable[[Dict[str, Any], Optional[List[str]]], Awaitable[Dict[str, Any]]],
-        critique_fn: Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]],
         quality_threshold: float = 8.0,
         max_refinement_cycles: int = 2
     ):
-        self.creator_fn = creator_fn
-        self.critique_fn = critique_fn
+        # لم نعد بحاجة لتمرير الدوال، فالخدمة ستعرف الوكلاء الذين يجب استدعاؤهم
+        self.composer = chapter_composer_agent
+        self.critic = literary_critic_agent
         self.quality_threshold = quality_threshold
         self.max_refinement_cycles = max_refinement_cycles
+        logger.info("✅ RefinementService (V2) initialized.")
 
-    async def refine(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def refine_chapter(self, chapter_outline: ChapterOutline, prev_chapter_summary: Optional[str] = None) -> Dict[str, Any]:
         """
-        يشغّل دورة تحسين تكرارية لأي كيان قابل للإنشاء والنقد.
+        يشغّل دورة تحسين تكرارية لكتابة فصل واحد.
         """
-        logger.info(f"🚀 [Refinement] Starting iterative process. Target score: {self.quality_threshold}, Max cycles: {self.max_refinement_cycles}")
+        logger.info(f"🚀 [Refinement] Starting iterative process for chapter: '{chapter_outline.title}'. Target score: {self.quality_threshold}")
 
-        final_content = None
+        final_content: Optional[str] = None
         feedback_for_next_cycle: Optional[List[str]] = None
-        final_score = 0.0
-        critique_report = {}
+        final_critique: Optional[CritiqueReport] = None
         
         for cycle in range(self.max_refinement_cycles + 1):
             logger.info(f"--- 🔄 Refinement Cycle {cycle + 1}/{self.max_refinement_cycles + 1} ---")
 
             # --- الخطوة 1: الإنشاء أو التحسين ---
-            logger.info("  Step 1: Generating content...")
-            generation_result = await self.creator_fn(context, feedback_for_next_cycle)
+            logger.info("  Step 1: Calling ChapterComposerAgent to generate content...")
+            current_content = await self.composer.write_chapter(
+                chapter_outline=chapter_outline,
+                previous_chapter_summary=prev_chapter_summary,
+                feedback=feedback_for_next_cycle
+            )
             
-            if generation_result.get("status") != "success" or "content" not in generation_result:
-                error_message = generation_result.get("message", "Content generation failed or returned an empty result.")
-                logger.error(f"  ❌ Generation failed in cycle {cycle + 1}. Reason: {error_message}")
-                return {"status": "error", "message": error_message, "details": generation_result}
-
-            current_content = generation_result["content"]
+            if not current_content:
+                error_message = "ChapterComposerAgent failed to generate content."
+                logger.error(f"  ❌ Generation failed in cycle {cycle + 1}.")
+                return {"status": "error", "message": error_message}
+            
             final_content = current_content
             
             # --- الخطوة 2: النقد والتقييم ---
-            logger.info("  Step 2: Critiquing generated content...")
-            critique_result = await self.critique_fn(current_content)
+            logger.info("  Step 2: Calling LiteraryCriticAgent to critique content...")
+            critique_report = await self.critic.review_chapter(current_content)
             
-            if "overall_score" not in critique_result or "issues" not in critique_result:
-                logger.error(f"  ❌ Critique function returned invalid format: {critique_result}")
-                break
+            if not critique_report:
+                logger.error(f"  ❌ Critique function failed or returned invalid format.")
+                break # الخروج من الحلقة والرضا بآخر نسخة مكتوبة
 
-            critique_report = critique_result
-            current_score = critique_report.get("overall_score", 0.0)
-            feedback_for_next_cycle = critique_report.get("issues")
-            final_score = current_score
+            final_critique = critique_report
+            current_score = critique_report.overall_score
+            feedback_for_next_cycle = critique_report.issues
 
             logger.info(f"  📊 Critique Result: Score = {current_score:.2f}/10.0")
             if feedback_for_next_cycle:
@@ -66,7 +73,7 @@ class RefinementService:
 
             # --- الخطوة 3: اتخاذ القرار ---
             if current_score >= self.quality_threshold:
-                logger.info(f"  ✅ Quality threshold met ({current_score:.2f} >= {self.quality_threshold}). Finalizing.")
+                logger.info(f"  ✅ Quality threshold met. Finalizing.")
                 break
             
             if cycle >= self.max_refinement_cycles:
@@ -78,10 +85,12 @@ class RefinementService:
         final_result = {
             "status": "success",
             "final_content": final_content,
-            "final_score": final_score,
-            "final_critique": critique_report,
+            "final_critique": final_critique.dict() if final_critique else None,
             "refinement_cycles_used": cycle + 1
         }
 
-        logger.info(f"🏁 [Refinement] Process finished. Final score: {final_score:.2f} after {cycle + 1} cycle(s).")
+        logger.info(f"🏁 [Refinement] Process finished. Final score: {final_critique.overall_score if final_critique else 'N/A'}")
         return final_result
+
+# إنشاء مثيل وحيد
+refinement_service = RefinementService()
