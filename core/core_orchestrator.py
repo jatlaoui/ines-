@@ -1,100 +1,181 @@
-# core/core_orchestrator.py (V8 - MCP Enabled)
+# core/core_orchestrator.py (V2 - The Autonomous Engine)
 import logging
-from typing import Dict, Any
+import asyncio
+import uuid
+from typing import Any, Dict, List, Optional
 
-# ... (كل الاستيرادات السابقة) ...
-from ..agents.context_distiller_agent import context_distiller_agent
+# --- استيراد جميع مكونات INES التي تم تفعيلها ---
+from .core_narrative_memory import narrative_memory
+from .refinement_service import refinement_service
+from .workflow_templates_models import WorkflowTemplate, WorkflowTask, TaskType
+from .workflow_templates import workflow_template_manager
 
-logger = logging.getLogger("CoreOrchestrator-V8")
+# --- استيراد الوكلاء ---
+from agents.idea_generator_agent import idea_generator_agent
+from agents.blueprint_architect_agent import blueprint_architect_agent
+from agents.chapter_composer_agent import chapter_composer_agent
+from agents.literary_critic_agent import literary_critic_agent
+from agents.psychological_profiler_agent import psychological_profiler_agent
+# ... إضافة بقية الوكلاء عند الحاجة ...
+
+# --- استيراد المنسق الاستراتيجي ---
+from orchestrators.athena_strategic_orchestrator import athena_orchestrator, StrategicDecision
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [CoreOrchestrator] - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoreOrchestrator")
 
 class CoreOrchestrator:
     """
-    المنسق الأساسي (V8).
-    ينفذ بروتوكول ضغط السياق وتفويض المهام (MCP) لتحقيق أقصى
-    قدر من الكفاءة والجودة.
+    المنسق الأساسي (V2) - المحرك المستقل لنظام INES.
+    يدير سير العمل الديناميكي الموجه بقرارات "أثينا" الاستراتيجية.
     """
     def __init__(self):
-        # ... (تسجيل الوكلاء، بما في ذلك context_distiller_agent) ...
-        self.agents = {"context_distiller": context_distiller_agent} # كمثال
-        logger.info("✅ MCP-Enabled CoreOrchestrator (V8) Initialized.")
+        self.running_workflows: Dict[str, Dict[str, Any]] = {}
+        self.completed_workflows: Dict[str, Dict[str, Any]] = {}
+        
+        # [جديد] تسجيل جميع الوكلاء المتاحين في النظام
+        self.agents = {
+            "idea_generator": idea_generator_agent,
+            "blueprint_architect": blueprint_architect_agent,
+            "chapter_composer": chapter_composer_agent,
+            "literary_critic": literary_critic_agent,
+            "psychological_profiler": psychological_profiler_agent,
+            "athena_orchestrator": athena_orchestrator
+            # ... إضافة بقية الوكلاء هنا ...
+        }
+        logger.info(f"✅ CoreOrchestrator (V2) initialized with {len(self.agents)} registered agents.")
 
-    # ... (دالة start_autonomous_workflow كما هي) ...
-
-    async def _execute_autonomous_workflow(self, execution_id: str):
+    async def start_autonomous_workflow(self, project_goal: str, initial_context: Dict[str, Any]) -> str:
         """
-        التنفيذ الفعلي لسير العمل المستقل باستخدام بروتوكول MCP.
+        يبدأ سير عمل مستقل وديناميكي موجه بواسطة أثينا.
         """
-        execution = self.running_workflows[execution_id]
-        project_state = {"initial_context": execution["context_data"]} # كائن الحالة
-        last_task_output = {}
+        execution_id = f"exec_{uuid.uuid4().hex[:12]}"
+        logger.info(f"🚀 Starting AUTONOMOUS workflow '{execution_id}' with goal: '{project_goal}'")
 
+        # إعادة تعيين الذاكرة لمشروع جديد
+        narrative_memory.clear()
+        
+        # إعداد حالة المشروع
+        project_state = {
+            "goal": project_goal,
+            "initial_context": initial_context,
+            "task_history": [],
+            "last_task_output": {"summary": "Workflow initiated."},
+            "latest_critique": None,
+        }
+        
+        self.running_workflows[execution_id] = project_state
+        
+        # تشغيل سير العمل في الخلفية
+        asyncio.create_task(self._execute_autonomous_workflow(execution_id, project_state))
+        
+        return execution_id
+
+    async def _execute_autonomous_workflow(self, execution_id: str, project_state: Dict[str, Any]):
+        """
+        التنفيذ الفعلي لسير العمل المستقل.
+        """
         try:
-            for i in range(20): # الحد الأقصى للخطوات
-                logger.info(f"--- MCP-Enabled Cycle {i+1} for exec_id: {execution_id} ---")
+            for cycle in range(20): # الحد الأقصى للدورات لمنع الحلقات اللانهائية
+                logger.info(f"--- 🔄 Workflow Cycle {cycle + 1} for exec_id: {execution_id} ---")
 
-                # 1. "أثينا" تقرر الخطوة التالية (الـ "ماذا")
-                athena_context = {"project_state": project_state, "last_task_output": last_task_output}
-                decision_result = await self.agents["athena_orchestrator"].process_task(athena_context)
-                strategic_decision = decision_result.get("content", {}).get("strategic_decision")
+                # 1. أثينا تقرر المهمة التالية
+                decision_obj = await athena_orchestrator.decide_next_task(
+                    project_goal=project_state["goal"],
+                    project_state=project_state
+                )
                 
-                next_task_type = strategic_decision.get("next_task_type")
-                target_agent_id = strategic_decision.get("input_data", {}).get("agent_id")
-                task_description = strategic_decision.get("justification")
+                if not decision_obj:
+                    raise RuntimeError("Athena failed to make a decision. Halting workflow.")
                 
-                # ... (منطق التحقق من الإنهاء) ...
+                decision = StrategicDecision.parse_obj(decision_obj)
+                
+                # التحقق من شرط التوقف
+                if decision.next_task_type == TaskType.FINISH_WORKFLOW:
+                    logger.info(f"🏁 Athena decided to finish the workflow. Reason: {decision.justification}")
+                    break
 
-                # 2. [جديد] "مُحضِّر السياق" يحضر المهمة (الـ "كيف")
-                logger.info(f"MCP Step 1: Distilling context for agent '{target_agent_id}'...")
-                distillation_context = {
-                    "full_project_state": project_state,
-                    "next_task_description": task_description,
-                    "target_agent_id": target_agent_id
-                }
-                distill_result = await self.agents["context_distiller"].process_task(distillation_context)
-                if distill_result["status"] == "error": raise RuntimeError("Context distillation failed.")
-                distilled_context = distill_result["content"]["distilled_context"]
-                
-                # 3. المنسق ينفذ المهمة مع السياق المضغوط
-                logger.info(f"MCP Step 2: Executing task '{next_task_type}' with distilled context...")
+                # 2. تنفيذ المهمة التي قررتها أثينا
+                target_agent_id = decision.input_data.get("agent_id")
                 target_agent = self.agents.get(target_agent_id)
                 
-                # تمرير السياق المضغوط فقط إلى الوكيل المستهدف
-                last_task_output = await target_agent.process_task(distilled_context)
+                if not target_agent:
+                    raise ValueError(f"Agent '{target_agent_id}' decided by Athena is not registered.")
+
+                logger.info(f"Executing task '{decision.next_task_type.value}' on agent '{target_agent_id}'...")
                 
-                # 4. تحديث حالة المشروع الكاملة بالنتائج
-                self._update_project_state(project_state, last_task_output, next_task_type)
-                execution["task_history"].append({"task": next_task_type, "summary": str(last_task_output)[:200]})
+                # تمرير السياق اللازم للمهمة
+                task_context = decision.input_data
+                
+                # دمج المخرجات السابقة إذا لزم الأمر
+                # (يمكن لأثينا تحديد ذلك في input_data)
+                if task_context.get("use_last_output"):
+                    task_context.update(project_state["last_task_output"].get("content", {}))
 
-            # ... (نهاية سير العمل) ...
+                task_output = await target_agent.process_task(task_context)
 
+                # 3. تحديث حالة المشروع والذاكرة
+                self._update_project_state(project_state, decision, task_output)
+                
+                # إضافة المخرجات الرئيسية إلى الذاكرة السردية
+                if task_output.get("status") == "success" and "content" in task_output:
+                     # نحول المحتوى إلى نص قبل إضافته للذاكرة
+                    content_to_embed = json.dumps(task_output["content"], ensure_ascii=False)
+                    narrative_memory.add_entry(
+                        entry_type=decision.next_task_type.value,
+                        content=content_to_embed,
+                        metadata={"agent_id": target_agent_id}
+                    )
+            else:
+                 logger.warning(f"Workflow {execution_id} reached max cycles (20). Terminating.")
+
+            project_state["status"] = "completed"
         except Exception as e:
-            # ... (معالجة الأخطاء) ...
-            
-    # ... (بقية الدوال المساعدة)
-# في core/core_orchestrator.py
-
-class CoreOrchestrator:
-    # ...
-    async def _execute_dynamic_workflow(self, execution_id: str):
-        # ...
-        # داخل حلقة تنفيذ المهام
+            logger.error(f"❌ Workflow {execution_id} failed: {e}", exc_info=True)
+            project_state["status"] = "failed"
+            project_state["error"] = str(e)
         
-        if task_data.get("is_loop"):
-            # [منطق جديد] التعامل مع المهام التكرارية
-            loop_data_path = task_data.get("loop_over")
-            # استخلاص قائمة العناصر للتكرار عليها من مخرجات مهمة سابقة
-            items_to_loop = self._get_data_from_path(execution["task_outputs"], loop_data_path)
+        self.completed_workflows[execution_id] = project_state
+        del self.running_workflows[execution_id]
+
+    def _update_project_state(self, state: Dict, decision: StrategicDecision, output: Dict):
+        """
+        تحديث كائن حالة المشروع بعد كل مهمة.
+        """
+        state["task_history"].append({
+            "task": decision.next_task_type.value,
+            "justification": decision.justification,
+            "output_summary": output.get("summary", "No summary provided.")
+        })
+        state["last_task_output"] = output
+        state["last_task_type"] = decision.next_task_type.value
+        
+        # إذا كانت المهمة نقدًا، نحفظ التقييم
+        if "critique" in decision.next_task_type.value:
+            state["latest_critique"] = output.get("content", {}).get("critique_report")
             
-            sub_tasks_results = []
-            for item in items_to_loop:
-                # لكل عنصر، قم بتنفيذ المهمة مع تمرير العنصر كسياق
-                item_context = {**context, "current_item": item}
-                sub_task_result = await handler(task_data, item_context)
-                sub_tasks_results.append(sub_task_result)
-            
-            result = {"status": "success", "content": {"loop_results": sub_tasks_results}}
+    def get_workflow_status(self, execution_id: str) -> Dict[str, Any]:
+        """
+        الحصول على حالة سير عمل معين.
+        """
+        if execution_id in self.running_workflows:
+            state = self.running_workflows[execution_id]
+            return {
+                "status": "running",
+                "goal": state["goal"],
+                "progress": f"{len(state['task_history'])} steps completed.",
+                "last_task": state.get("last_task_type")
+            }
+        elif execution_id in self.completed_workflows:
+            state = self.completed_workflows[execution_id]
+            return {
+                "status": state["status"],
+                "goal": state["goal"],
+                "final_output": state.get("last_task_output", {}).get("content"),
+                "error": state.get("error")
+            }
         else:
-            # تنفيذ المهمة العادية
-            result = await handler(task_data, context)
-            
-        # ...
+            return {"status": "not_found"}
+
+# إنشاء مثيل وحيد
+core_orchestrator = CoreOrchestrator()
