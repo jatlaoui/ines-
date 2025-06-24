@@ -39,7 +39,7 @@ class LiteraryCriticAgent(BaseAgent):
         response = await llm_service.generate_json_response(prompt, temperature=0.7)
 
         if "error" in response:
-            return {"status": "error", "message": "LLM call failed for critique.", "details": response}
+            return {"status": "error", "message": "LLM call for critique.", "details": response}
 
         return {"status": "success", "content": {"critique_report": response}}
 
