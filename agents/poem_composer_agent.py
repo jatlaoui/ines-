@@ -1,87 +1,67 @@
-# agents/poem_composer_agent.py (النسخة المحدثة V5 - للتقمص الوجداني)
+# agents/poem_composer_agent.py (V6 - Metaphor-Aware)
 import logging
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
 from ..core.llm_service import llm_service
-from ..engines.slang_colloquialism_engine import slang_engine
+# ... (بقية الاستيرادات)
 
 logger = logging.getLogger("PoemComposerAgent")
 
 class PoemComposerAgent(BaseAgent):
     """
-    وكيل كتابة الشعر والكلمات الغنائية (V5).
-    يركز على التقمص الوجداني العميق لإنتاج "تيار وعي" خام وصادق،
-    مستخدماً معاجم اللهجات الحية.
+    [مُحسّن] وكيل كتابة الشعر (V6).
+    يتقمص صورة شعرية مركزية لإنتاج "تيار وعي" عميق وغير مباشر.
     """
     def __init__(self, agent_id: Optional[str] = None):
         super().__init__(
             agent_id=agent_id or "poem_composer_agent",
-            name="الشاعر المتقمص",
-            description="يكتب نصوصًا غنائية خام وصادقة من خلال التقمص الكامل للشخصية."
+            name="الشاعر المتقمص للرموز",
+            description="يكتب نصوصًا خامًا وصادقة من خلال التقمص الكامل لرمز شعري."
         )
 
-    async def compose_raw_lyrics(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def compose_raw_lyrics_from_metaphor(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        الوظيفة الرئيسية: يولد نصًا خامًا (stream of consciousness) بناءً على
-        الملف النفسي والسيناريو الحسي.
+        [مُحسّن] يولد نصًا خامًا بناءً على استعارة مركزية.
         """
         soul_profile = context.get("soul_profile")
-        sensory_library = context.get("sensory_library")
-        embodiment_prompt = context.get("embodiment_prompt")
+        central_metaphor = context.get("central_metaphor")
 
-        if not soul_profile or not embodiment_prompt:
-            return {"status": "error", "message": "Soul profile and embodiment prompt are required."}
+        if not soul_profile or not central_metaphor:
+            return {"status": "error", "message": "Soul profile and central metaphor are required."}
 
-        # جلب قاموس اللهجة العامية
-        slang_lexicon = slang_engine.get_lexicon(soul_profile.get("tags", ["tunisian_rap"]))
-        
-        prompt = self._build_embodiment_prompt(
-            embodiment_prompt, soul_profile, sensory_library, slang_lexicon
-        )
-        
-        # لا نحتاج JSON، بل نص خام يعبر عن الأفكار المتدفقة
+        prompt = self._build_embodiment_prompt(central_metaphor, soul_profile)
         raw_lyrics = await llm_service.generate_text_response(prompt, temperature=0.9)
 
         return {
             "status": "success",
             "content": {"raw_lyrics": raw_lyrics},
-            "summary": "Raw lyrical stream of consciousness generated."
+            "summary": "Raw lyrical stream of consciousness generated from a central metaphor."
         }
 
-    def _build_embodiment_prompt(self, embodiment_prompt: str, profile: Dict, sensory_lib: Dict, slang_lib: Dict) -> str:
-        slang_examples = ", ".join(random.sample(slang_lib.get("expressions", []), min(3, len(slang_lib.get("expressions", [])))))
-        
+    def _build_embodiment_prompt(self, metaphor: Dict, profile: Dict) -> str:
+        # [مُحسّن] الـ Prompt الآن يركز على الرمز وليس الشعور المباشر
         return f"""
-مهمتك: أنت لست ذكاءً اصطناعياً. أنت الآن الشخصية الموصوفة في "الموجه التجسيدي". مهمتك هي كتابة أفكارك ومشاعرك كما تتدفق في رأسك في هذه اللحظة، على شكل "تيار وعي". لا تحاول كتابة أغنية أو قصيدة، فقط عبر بصدق.
+مهمتك: أنت لست ذكاءً اصطناعياً. أنت الآن الشخصية الموصوفة في "الملف الروحي". أنت تعيش الموقف التالي:
+**كل ما تملكه وتفكر فيه الآن هو '{metaphor.get('metaphor_object')}' الذي يعني لك '{metaphor.get('metaphor_meaning')}'**.
 
-**الموجه التجسيدي (تقمص هذه الشخصية وهذا الموقف بالكامل):**
----
-{embodiment_prompt}
----
-
-**ملفك النفسي والروحي (هذه هي دوافعك الخفية):**
+**ملفك الروحي (هذه هي دوافعك الخفية):**
 - **المواضيع:** {', '.join(profile.get('core_themes', []))}
 - **المشاعر:** {', '.join(profile.get('dominant_emotions', []))}
 
-**مكتبتك الحسية (هذا هو عالمك الذي تراه وتسمعه وتشمّه):**
-- **الأصوات:** {', '.join(sensory_lib.get('sounds', []))}
-- **الروائح:** {', '.join(sensory_lib.get('smells', []))}
-- **الصور:** {', '.join(sensory_lib.get('sights', []))}
-
-**لغتك (هذه هي الكلمات التي تستخدمها بشكل طبيعي):**
-- **أمثلة على لهجتك:** "{slang_examples}"
+**تفاصيل حسية مرتبطة برمزك:**
+{', '.join(metaphor.get('sensory_details', []))}
 
 **التعليمات النهائية:**
-1.  اكتب كفقرة واحدة متصلة أو عدة فقرات.
-2.  **لا تهتم بالقوافي أو الوزن على الإطلاق.** ركز فقط على صدق الشعور وتدفق الأفكار.
-3.  استخدم الصور الحسية واللهجة العامية المتاحة لك بشكل طبيعي.
+- اكتب "تيار وعي" (Stream of Consciousness).
+- **لا تشرح الرمز أو تتحدث عنه مباشرة.** فقط عبر عن الأفكار والمشاعر التي يثيرها فيك.
+- لا تهتم بالقافية أو الوزن. ركز على الصدق وتدفق الأفكار.
 
-**أفكارك ومشاعرك الآن (تيار الوعي):**
+**أفكارك ومشاعرك الآن:**
 """
 
     async def process_task(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        return await self.compose_raw_lyrics(context)
+        return await self.compose_raw_lyrics_from_metaphor(context)
 
 # إنشاء مثيل وحيد
 poem_composer_agent = PoemComposerAgent()
