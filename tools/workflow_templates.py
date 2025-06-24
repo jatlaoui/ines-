@@ -894,3 +894,35 @@ deep_soul_protocol_v1 = WorkflowTemplate(
 )
 # تسجيل القالب الجديد في __init__
 # self.templates[deep_soul_protocol_v1.id] = deep_soul_protocol_v1
+# في ملف workflow_templates.py داخل قالب deep_soul_protocol_v1
+
+# ...
+    tasks=[
+        # --- [مهمة جديدة/اختيارية] ---
+        WorkflowTask(
+            id="task_0_oral_analysis",
+            name="تحليل البصمة الشفوية للمصادر الصوتية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "oral_heritage_agent", "audio_source": "{artist_oral_sample.mp3}"},
+            # هذه المهمة لا تعتمد على شيء وتعمل بالتوازي
+        ),
+        # --- بقية المهام ---
+        WorkflowTask(
+            id="task_1_soul_profile",
+            # ...
+        ),
+        # ...
+        WorkflowTask(
+            id="task_6_dialect_review",
+            name="مراجعة وصقل الأصالة اللهجية",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={
+                "agent_id": "dialect_authenticity_guardian_agent",
+                # [جديد] يمكننا الآن تمرير البصمة الشفوية كمرجع
+                "oral_fingerprint": "{{task_0_oral_analysis.output.content.oral_fingerprint}}"
+            },
+            dependencies=["task_5_flow_engineering"]
+        ),
+        # ...
+    ]
+# ...
