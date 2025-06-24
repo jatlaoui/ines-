@@ -925,4 +925,54 @@ deep_soul_protocol_v1 = WorkflowTemplate(
         ),
         # ...
     ]
-# ...
+# ...# في ملف workflow_templates.py
+
+# ----------------------------------------------------------------------
+# 14. بروتوكول المحاكاة الفنية الشاملة (النسخة النهائية لهذه المرحلة)
+# ----------------------------------------------------------------------
+holistic_artistic_emulation_v1 = WorkflowTemplate(
+    id="holistic_artistic_emulation_v1",
+    name="إنتاج أغنية ببروتوكول المحاكاة الفنية الشاملة",
+    description="سير عمل يحلل النص والصوت والصورة، ثم ينتج عملاً فنياً متكاملاً.",
+    category="ultimate_emulation",
+    tasks=[
+        # --- المرحلة 1: التحليل الفني الشامل (نص، صوت، صورة) ---
+        WorkflowTask(
+            id="task_1_soul_profile",
+            name="تحليل الملف الروحي (النصي)",
+            # ...
+        ),
+        WorkflowTask(
+            id="task_2_visual_analysis", # [جديد]
+            name="تحليل البصمة البصرية (الفيديو)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "visual_theme_analyzer_agent", "video_source": "{artist_video_sample}"}
+        ),
+        WorkflowTask(
+            id="task_3_music_analysis", # [مُرقَّى]
+            name="تحليل البصمة الموسيقية والصوتية (الصوت)",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "music_and_vocal_style_analyzer_agent", "audio_source": "{artist_audio_sample}"}
+        ),
+        
+        # --- المرحلة 2: بناء السيناريو والرمز ---
+        WorkflowTask(
+            id="task_4_generate_metaphor",
+            name="توليد الصورة الشعرية المركزية",
+            dependencies=["task_1_soul_profile", "task_2_visual_analysis"] # [مُرقَّى] يعتمد الآن على التحليل البصري أيضًا
+        ),
+        WorkflowTask(
+            id="task_5_build_scenario", # [مُرقَّى]
+            name="بناء السيناريو الفني المتكامل",
+            task_type=TaskType.CUSTOM_AGENT_TASK,
+            input_data={"agent_id": "scenario_builder_agent", "topic": "{song_topic}"},
+            dependencies=["task_1_soul_profile", "task_2_visual_analysis", "task_3_music_analysis"]
+        ),
+        
+        # --- بقية المراحل (الكتابة، الهندسة، الصقل، الأداء، النقد) تظل كما هي،
+        # لكنها الآن ستتلقى مدخلات أكثر ثراءً وعمقًا، مما سيحسن نتائجها بشكل كبير.
+        # ...
+    ]
+)
+# ... تسجيل القالب الجديد
+
