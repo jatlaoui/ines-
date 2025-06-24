@@ -2,8 +2,13 @@
 import asyncio
 import argparse
 import json
+import logging
+
+# التأكد من أن جميع الوحدات والوكلاء يتم استيرادهم ليتم تسجيلهم
 from core.core_orchestrator import core_orchestrator
-from core.core_auth import get_mock_user_session # لغرض الاختبار
+
+# إعداد التسجيل
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(name)s] - %(levelname)s - %(message)s')
 
 def setup_arg_parser():
     """إعداد محلل وسيطات سطر الأوامر."""
@@ -11,13 +16,14 @@ def setup_arg_parser():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # أمر تشغيل سير العمل
-    run_parser = subparsers.add_parser("run-workflow", help="Run a specific workflow template.")
-    run_parser.add_argument("--id", type=str, required=True, help="The ID of the workflow template to run.")
-    run_parser.add_argument("--input-json", type=str, required=True, help="JSON string containing the initial context for the workflow.")
+    run_parser = subparsers.add_parser("run", help="Run an autonomous creative workflow.")
+    run_parser.add_argument("--goal", type=str, required=True, help="The high-level goal for the project (e.g., 'Write a short novel about Tunisian resistance').")
+    run_parser.add_argument("--context", type=str, default='{}', help="JSON string containing any initial context for the workflow (e.g., '{\"initial_topic\": \"...\"}').")
 
-    # أمر قائمة القوالب
-    list_parser = subparsers.add_parser("list-templates", help="List all available workflow templates.")
-
+    # أمر التحقق من الحالة
+    status_parser = subparsers.add_parser("status", help="Check the status of a running or completed workflow.")
+    status_parser.add_argument("--id", type=str, required=True, help="The execution ID of the workflow to check.")
+    
     return parser
 
 async def main():
@@ -25,31 +31,41 @@ async def main():
     parser = setup_arg_parser()
     args = parser.parse_args()
 
-    # محاكاة جلسة مستخدم
-    user_session = get_mock_user_session("cli_user_001")
-
-    if args.command == "list-templates":
-        # عرض قائمة بالقوالب المتاحة
-        from core.workflow_templates import workflow_template_manager
-        templates = workflow_template_manager.list_templates()
-        print(json.dumps(templates, indent=2, ensure_ascii=False))
-
-    elif args.command == "run-workflow":
-        template_id = args.id
+    if args.command == "run":
         try:
-            initial_context = json.loads(args.input_json)
+            initial_context = json.loads(args.context)
         except json.JSONDecodeError:
-            print("Error: Invalid JSON format for --input-json.")
+            print("Error: Invalid JSON format for --context.")
             return
 
-        print(f"Starting workflow '{template_id}'...")
         execution_id = await core_orchestrator.start_autonomous_workflow(
-            project_goal=initial_context.get("goal", "Complete the requested task."),
+            project_goal=args.goal,
             initial_context=initial_context,
-            user_session=user_session
         )
-        print(f"Workflow started successfully! Execution ID: {execution_id}")
-        # يمكن إضافة منطق هنا لمتابعة حالة التنفيذ
+        print(f"\n🚀 Workflow started successfully! Execution ID: {execution_id}")
+        print("Use 'python main.py status --id <EXECUTION_ID>' to check its progress.")
+        
+        # الانتظار والمراقبة (في تطبيق حقيقي قد يكون هذا نظام طابور)
+        while True:
+            status = core_orchestrator.get_workflow_status(execution_id)
+            if status['status'] != 'running':
+                print("\n--- Workflow Finished ---")
+                print(f"Final Status: {status['status']}")
+                if status.get('error'):
+                    print(f"Error: {status['error']}")
+                else:
+                    print("Final Output:")
+                    # طباعة المخرجات النهائية بشكل جميل
+                    print(json.dumps(status.get('final_output'), indent=2, ensure_ascii=False))
+                break
+            await asyncio.sleep(10) # تحقق كل 10 ثوان
+
+    elif args.command == "status":
+        status = core_orchestrator.get_workflow_status(args.id)
+        print(json.dumps(status, indent=2, ensure_ascii=False))
         
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nWorkflow execution interrupted by user.")
